@@ -38,6 +38,7 @@ class Http {
         void getResponse();
         void postResponse();
         void deleteResponse();
+        void methodNotAllowedResponse();
 
     public:
 
