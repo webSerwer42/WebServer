@@ -1,13 +1,13 @@
 #include "Http.hpp"
 
-void Http::parseRequestLine(const std::string& line, HttpRequest& request) {
+void Http::parseRequestLine(const std::string& line, requestData& request) {
     std::istringstream stream(line);
     if (!(stream >> request.method >> request.path >> request.httpVersion)) {
         throw std::invalid_argument("Invalid HTTP request line");
     }
 }
 
-void Http::parseHeaderLine(const std::string& line, HttpRequest& request) {
+void Http::parseHeaderLine(const std::string& line, requestData& request) {
     size_t delimiterPos = line.find(": ");
     if (delimiterPos == std::string::npos) {
         throw std::invalid_argument("Invalid HTTP header line");
@@ -18,8 +18,8 @@ void Http::parseHeaderLine(const std::string& line, HttpRequest& request) {
     request.headers[key] = value;
 }
 
-Http::HttpRequest Http::parse(const std::string& rawRequest) {
-    HttpRequest request;
+Http::requestData Http::parse(const std::string& rawRequest) {
+    requestData request;
     if (rawRequest.empty()) {
         throw std::invalid_argument("Empty HTTP request");
     }
@@ -51,19 +51,19 @@ Http::HttpRequest Http::parse(const std::string& rawRequest) {
 }
 
 Http::Http(std::string& rawRequest) {
-    this->request = parse(rawRequest);
+    this->request = parseRequest(rawRequest);
 }
 
 void Http::getResponse() {
-    this->httpVersion = "HTTP/1.1";
-    this->statusCode = "200 OK";
-    this->body = "<html><body><h1>GET request received</h1></body></html>";
+    this->requestHttpVersion = "HTTP/1.1";
+    this->responseStatusCode = "200 OK";
+    this->requestBody = "<html><body><h1>GET request received</h1></body></html>";
 }
 
 void Http::postResponse() {
-    this->httpVersion = "HTTP/1.1";
-    this->statusCode = "200 OK";
-    this->body = "<html><body><h1>POST request received</h1></body></html>";
+    this->requestHttpVersion = "HTTP/1.1";
+    this->responseStatusCode = "200 OK";
+    this->requestBody = "<html><body><h1>POST request received</h1></body></html>";
 }
 void Http::putResponse() {
     this->httpVersion = "HTTP/1.1";
