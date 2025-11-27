@@ -4,6 +4,31 @@
 #include "../http/Http.hpp"
 #include "../errors/error.hpp"
 
+void CoreEngine::closeClientConnection(size_t el)
+{
+   close(pollFDs[el].fd);
+   
+   // Wyczyść mapowanie dla tego klienta
+   clientToServer.erase(el);
+   
+   // Przesuń elementy w pollFDs i zaktualizuj indeksy w mapowaniach
+   for (size_t i = el; i < pollFDsNum - 1; i++)
+   {
+      pollFDs[i] = pollFDs[i + 1];
+      
+      // Zaktualizuj mapowania (indeksy się przesunęły!)
+      if (clientToServer.find(i + 1) != clientToServer.end())
+      {
+         clientToServer[i] = clientToServer[i + 1];
+         clientToServer.erase(i + 1);
+      }
+   }
+   
+   // Zmniejsz rozmiar tablicy pollFDs
+   pollFDs = (pollfd *)realloc(pollFDs, (pollFDsNum - 1) * sizeof(pollfd));
+   pollFDsNum--;
+}
+
 void CoreEngine::setConnection(size_t i)
 {
    socklen_t addrLen = sizeof(sockaddr_storage);
@@ -32,26 +57,18 @@ void CoreEngine::recivNClose(size_t el)
    if (byteRecived == -1)
    {
       std::cerr << "recv() failed: " << strerror(errno) << std::endl;
-            // Wyślij 500 Internal Server Error
+      // Wyślij 500 Internal Server Error
       HttpError errorHandler;
       std::string errorResponse = errorHandler.generateErrorResponse(500);
       send(pollFDs[el].fd, errorResponse.c_str(), errorResponse.size(), 0);
-      close(pollFDs[el].fd);
+      
+      closeClientConnection(el);
       return;
    }
    // this is closing socket logic, when send EOF by client EOF
    else if (byteRecived == 0)
    {
-      close(pollFDs[el].fd);
-      for (size_t i = el; i < pollFDsNum; i++)
-      {
-         if (el == (pollFDsNum - 1))
-            break;
-         pollFDs[i] = pollFDs[i + 1];
-      }
-      // shirinking pollfd
-      pollFDs = (pollfd *)realloc(pollFDs, (pollFDsNum - 1) * sizeof(pollfd));
-      pollFDsNum--;
+      closeClientConnection(el);
    }
    else
    {
@@ -65,7 +82,8 @@ void CoreEngine::recivNClose(size_t el)
          std::string errorResponse = errorHandler.generateErrorResponse(400, 
             "The request is empty or does not contain valid HTTP headers.");
          send(pollFDs[el].fd, errorResponse.c_str(), errorResponse.size(), 0);
-         close(pollFDs[el].fd);
+         
+         closeClientConnection(el);
          return;
       }
       
@@ -77,7 +95,8 @@ void CoreEngine::recivNClose(size_t el)
          std::string errorResponse = errorHandler.generateErrorResponse(413,
             "The request payload exceeds the maximum buffer size of 1024 bytes.");
          send(pollFDs[el].fd, errorResponse.c_str(), errorResponse.size(), 0);
-         close(pollFDs[el].fd);
+         
+         closeClientConnection(el);
          return;
       }
 

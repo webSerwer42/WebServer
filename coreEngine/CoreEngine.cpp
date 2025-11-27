@@ -114,21 +114,7 @@ void CoreEngine::coreEngine()
             if (pollFDs[i].revents & POLLHUP) // consider it coz might be unnesesary.
             {
                std::cout << "client on FD: " << pollFDs[i].fd << " has disconnected" << std::endl;
-               close(pollFDs[i].fd);
-               // Clean up mappings
-               clientToServer.erase(i);
-               // Remove from pollFDs array
-               for (size_t k = i; k < pollFDsNum - 1; k++)
-               {
-                  pollFDs[k] = pollFDs[k + 1];
-                  if (clientToServer.find(k + 1) != clientToServer.end())
-                  {
-                     clientToServer[k] = clientToServer[k + 1];
-                     clientToServer.erase(k + 1);
-                  }
-               }
-               pollFDs = (pollfd *)realloc(pollFDs, (pollFDsNum - 1) * sizeof(pollfd));
-               pollFDsNum--;
+               closeClientConnection(i);
                i--; // adjust loop counter
             }
             if (pollFDs[i].revents & POLLERR)
@@ -138,21 +124,8 @@ void CoreEngine::coreEngine()
                HttpError errorHandler;
                std::string errorResponse = errorHandler.generateErrorResponse(500);
                send(pollFDs[i].fd, errorResponse.c_str(), errorResponse.size(), 0);
-               close(pollFDs[i].fd);
-               // Clean up mappings
-               clientToServer.erase(i);
-               // Remove from pollFDs array
-               for (size_t k = i; k < pollFDsNum - 1; k++)
-               {
-                  pollFDs[k] = pollFDs[k + 1];
-                  if (clientToServer.find(k + 1) != clientToServer.end())
-                  {
-                     clientToServer[k] = clientToServer[k + 1];
-                     clientToServer.erase(k + 1);
-                  }
-               }
-               pollFDs = (pollfd *)realloc(pollFDs, (pollFDsNum - 1) * sizeof(pollfd));
-               pollFDsNum--;
+               
+               closeClientConnection(i);
                i--; // adjust loop counter
             }
          }

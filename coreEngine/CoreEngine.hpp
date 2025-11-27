@@ -49,6 +49,7 @@ public:
     void sendToClient(size_t i);
     void coreEngine();
     std::string getBuffer();
+    void closeClientConnection(size_t el); // funkcja pomocnicza do zamykania połączeń
 };
 
 #endif
