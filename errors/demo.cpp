@@ -139,7 +139,7 @@ int main() {
     std::cout << "   • errors/INTEGRATION_GUIDE.cpp" << std::endl;
     std::cout << "   • errors/QUICK_REFERENCE.txt" << std::endl;
     
-    std::cout << "\n🚀 Gotowe do użycia w twoim webserverze!\n" << std::endl;
+    std::cout << "\n🚀 Gotowe do użycia w webserverze!\n" << std::endl;
     
     return 0;
 }
