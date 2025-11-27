@@ -61,7 +61,7 @@ void CoreEngine::recivNClose(size_t el)
          std::cout << "Empty or invalid HTTP request!" << std::endl;
          
          HttpError errorHandler;
-         std::string errorResponse = errorHandler.generateErrorResponse(400, 
+         std::string errorResponse = errorHandler.generateCostumErrorResponse(400, 
             "Empty or malformed HTTP request.");
          send(pollFDs[el].fd, errorResponse.c_str(), errorResponse.size(), 0);
          close(pollFDs[el].fd);
@@ -74,7 +74,7 @@ void CoreEngine::recivNClose(size_t el)
          std::cout << "Request too large! Buffer full." << std::endl;
          
          HttpError errorHandler;
-         std::string errorResponse = errorHandler.generateErrorResponse(413,
+         std::string errorResponse = errorHandler.generateCostumErrorResponse(413,
             "Request payload exceeds maximum buffer size.");
          send(pollFDs[el].fd, errorResponse.c_str(), errorResponse.size(), 0);
          close(pollFDs[el].fd);
@@ -120,7 +120,7 @@ void CoreEngine::sendToClient(size_t el)
       // Jeśli cokolwiek pójdzie nie tak (parser, response builder, itp.)
       std::cerr << "Exception in sendToClient: " << e.what() << std::endl;
       
-      std::string errorResponse = errorHandler.generateErrorResponse(500,
+      std::string errorResponse = errorHandler.generateCostumErrorResponse(500,
          "Internal error while processing request.");
       send(pollFDs[el].fd, errorResponse.c_str(), errorResponse.size(), 0);
    }
@@ -150,7 +150,7 @@ void checkRoute(const std::string& path, int clientFD) {
     
     if (!routeExists) {
         HttpError errorHandler;
-        std::string errorResponse = errorHandler.generateErrorResponse(404,
+        std::string errorResponse = errorHandler.generateCostumErrorResponse(404,
             "The requested path '" + path + "' does not exist.");
         send(clientFD, errorResponse.c_str(), errorResponse.size(), 0);
         return;
@@ -161,7 +161,7 @@ void checkRoute(const std::string& path, int clientFD) {
 void checkMethod(const std::string& method, int clientFD) {
     if (method != "GET" && method != "POST" && method != "DELETE") {
         HttpError errorHandler;
-        std::string errorResponse = errorHandler.generateErrorResponse(405,
+        std::string errorResponse = errorHandler.generateCostumErrorResponse(405,
             "Method '" + method + "' is not allowed.");
         send(clientFD, errorResponse.c_str(), errorResponse.size(), 0);
         return;

@@ -6,7 +6,7 @@
 /*   By: agorski <agorski@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/26 14:37:10 by agorski           #+#    #+#             */
-/*   Updated: 2025/11/26 15:27:35 by agorski          ###   ########.fr       */
+/*   Updated: 2025/11/27 15:24:20 by agorski          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -20,7 +20,7 @@ HttpError::HttpError() {
 }
 
 void HttpError::initializeErrorMaps() {
-    // ============ 4xx CLIENT ERRORS (z MDN) ============
+    // ============ 4xx CLIENT ERRORS ============
     
     errorMap[400] = "Bad Request";
     errorDescriptions[400] = "The server cannot process the request due to malformed syntax.";
@@ -109,7 +109,7 @@ void HttpError::initializeErrorMaps() {
     errorMap[451] = "Unavailable For Legal Reasons";
     errorDescriptions[451] = "The resource is unavailable for legal reasons.";
     
-    // ============ 5xx SERVER ERRORS (z MDN) ============
+    // ============ 5xx SERVER ERRORS ============
     
     errorMap[500] = "Internal Server Error";
     errorDescriptions[500] = "The server encountered an unexpected condition that prevented it from fulfilling the request.";
@@ -163,79 +163,21 @@ std::string HttpError::generateHtmlBody(int code, const std::string& message, co
     std::ostringstream html;
     
     html << "<!DOCTYPE html>\n"
-         << "<html lang=\"en\">\n"
+         << "<html>\n"
          << "<head>\n"
-         << "    <meta charset=\"UTF-8\">\n"
-         << "    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n"
-         << "    <title>" << code << " " << message << "</title>\n"
-         << "    <style>\n"
-         << "        * { margin: 0; padding: 0; box-sizing: border-box; }\n"
-         << "        body {\n"
-         << "            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;\n"
-         << "            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n"
-         << "            min-height: 100vh;\n"
-         << "            display: flex;\n"
-         << "            justify-content: center;\n"
-         << "            align-items: center;\n"
-         << "            padding: 20px;\n"
-         << "        }\n"
-         << "        .error-container {\n"
-         << "            background: white;\n"
-         << "            border-radius: 20px;\n"
-         << "            box-shadow: 0 20px 60px rgba(0,0,0,0.3);\n"
-         << "            padding: 60px;\n"
-         << "            max-width: 600px;\n"
-         << "            text-align: center;\n"
-         << "        }\n"
-         << "        .error-code {\n"
-         << "            font-size: 120px;\n"
-         << "            font-weight: bold;\n"
-         << "            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n"
-         << "            -webkit-background-clip: text;\n"
-         << "            -webkit-text-fill-color: transparent;\n"
-         << "            margin-bottom: 20px;\n"
-         << "        }\n"
-         << "        .error-message {\n"
-         << "            font-size: 32px;\n"
-         << "            color: #333;\n"
-         << "            margin-bottom: 20px;\n"
-         << "            font-weight: 600;\n"
-         << "        }\n"
-         << "        .error-description {\n"
-         << "            font-size: 18px;\n"
-         << "            color: #666;\n"
-         << "            line-height: 1.6;\n"
-         << "            margin-bottom: 40px;\n"
-         << "        }\n"
-         << "        .back-button {\n"
-         << "            display: inline-block;\n"
-         << "            padding: 15px 40px;\n"
-         << "            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n"
-         << "            color: white;\n"
-         << "            text-decoration: none;\n"
-         << "            border-radius: 50px;\n"
-         << "            font-weight: 600;\n"
-         << "            transition: transform 0.3s ease;\n"
-         << "        }\n"
-         << "        .back-button:hover {\n"
-         << "            transform: translateY(-3px);\n"
-         << "        }\n"
-         << "    </style>\n"
+         << "<meta charset=\"UTF-8\">\n"
+         << "<title>" << code << " " << message << "</title>\n"
          << "</head>\n"
          << "<body>\n"
-         << "    <div class=\"error-container\">\n"
-         << "        <div class=\"error-code\">" << code << "</div>\n"
-         << "        <div class=\"error-message\">" << message << "</div>\n"
-         << "        <div class=\"error-description\">" << description << "</div>\n"
-         << "        <a href=\"/\" class=\"back-button\">Go Home</a>\n"
-         << "    </div>\n"
+         << "<h1>" << code << " " << message << "</h1>\n"
+         << "<p>" << description << "</p>\n"
          << "</body>\n"
          << "</html>";
     
     return html.str();
 }
 
-// ============ METODY POMOCNICZE DLA CUSTOM ERROR PAGES ============
+// ============ METODY POMOCNICZE DLA DEFAULT ERROR PAGES ============
 
 bool HttpError::fileExists(const std::string& path) const {
     struct stat buffer;
@@ -247,7 +189,7 @@ bool HttpError::isValidPath(const std::string& path) const {
     if (path.find("..") != std::string::npos) {
         return false;
     }
-    
+
     // Sprawdź czy plik istnieje i jest czytelny
     return (access(path.c_str(), R_OK) == 0);
 }
@@ -257,9 +199,9 @@ std::string HttpError::readFileContent(const std::string& path) const {
     if (!file.is_open()) {
         return "";
     }
-    
+
     std::ostringstream content;
-    content << file.rdbuf();
+    content << file.rdbuf(); // wczytaj cały plik do strumienia
     file.close();
     
     return content.str();
@@ -267,28 +209,27 @@ std::string HttpError::readFileContent(const std::string& path) const {
 
 // ============ PUBLICZNE METODY ZARZĄDZANIA CUSTOM PAGES ============
 
-void HttpError::setCustomErrorPage(int code, const std::string& filePath) {
+void HttpError::setDefaultErrorPage(int code, const std::string& filePath) {
     // Walidacja ścieżki
     if (!isValidPath(filePath)) {
         std::cerr << "Warning: Invalid or inaccessible custom error page: " 
                   << filePath << std::endl;
         return;
     }
-    
-    customErrorPages[code] = filePath;
+    defaultErrorPages[code] = filePath;
 }
 
-void HttpError::clearCustomErrorPages() {
-    customErrorPages.clear();
+void HttpError::clearDefaultErrorPages() {
+    defaultErrorPages.clear();
 }
 
-bool HttpError::hasCustomErrorPage(int code) const {
-    return customErrorPages.find(code) != customErrorPages.end();
+bool HttpError::hasDefaultErrorPage(int code) const {
+    return defaultErrorPages.find(code) != defaultErrorPages.end();
 }
 
-std::string HttpError::getCustomErrorPagePath(int code) const {
-    std::map<int, std::string>::const_iterator it = customErrorPages.find(code);
-    if (it != customErrorPages.end()) {
+std::string HttpError::getDefaultErrorPagePath(int code) const {
+    std::map<int, std::string>::const_iterator it = defaultErrorPages.find(code);
+    if (it != defaultErrorPages.end()) {
         return it->second;
     }
     return "";
@@ -297,44 +238,45 @@ std::string HttpError::getCustomErrorPagePath(int code) const {
 // ============ ZAKTUALIZOWANE METODY GENEROWANIA ODPOWIEDZI ============
 
 std::string HttpError::generateErrorResponse(int code) {
-    // 1️⃣ Sprawdź czy istnieje custom error page
-    if (hasCustomErrorPage(code)) {
-        std::string customPath = getCustomErrorPagePath(code);
-        
-        // 2️⃣ Sprawdź czy plik nadal istnieje i jest dostępny
-        if (fileExists(customPath) && isValidPath(customPath)) {
-            std::string customContent = readFileContent(customPath);
-            
-            // 3️⃣ Jeśli udało się wczytać - użyj custom page
-            if (!customContent.empty()) {
+    // Sprawdź czy istnieje default error page
+    if (hasDefaultErrorPage(code)) {
+        std::string defoultPath = getDefaultErrorPagePath(code);
+
+        // Sprawdź czy plik nadal istnieje i jest dostępny
+        if (fileExists(defoultPath) && isValidPath(defoultPath)) {
+            std::string defoultContent = readFileContent(defoultPath);
+
+            // Jeśli udało się wczytać - użyj default page
+            if (!defoultContent.empty()) {
                 std::string message = getErrorMessage(code);
-                
+
                 std::ostringstream response;
                 response << "HTTP/1.1 " << code << " " << message << "\r\n"
                          << "Content-Type: text/html; charset=UTF-8\r\n"
-                         << "Content-Length: " << customContent.length() << "\r\n"
+                         << "Content-Length: " << defoultContent.length() << "\r\n"
                          << "Connection: close\r\n"
                          << "\r\n"
-                         << customContent;
-                
+                         << defoultContent;
+
                 return response.str();
             } else {
-                // ⚠️ Plik pusty lub błąd odczytu - loguj warning
-                std::cerr << "Warning: Could not read custom error page: " 
-                          << customPath << std::endl;
+                // Plik pusty lub błąd odczytu - loguj warning
+                std::cerr << "Warning: Could not read default error page: " 
+                          << defoultPath << std::endl;
             }
         } else {
-            // ⚠️ Plik już nie istnieje lub stracił uprawnienia
+            // Plik już nie istnieje lub stracił uprawnienia
             std::cerr << "Warning: Custom error page no longer accessible: " 
-                      << customPath << std::endl;
+                      << defoultPath << std::endl;
+            code = 500; // Zmień kod na 500 Internal Server Error
         }
     }
     
-    // 4️⃣ Fallback - użyj domyślnej strony
+    // Fallback - użyj domyślnej strony
     std::string message = getErrorMessage(code);
     std::string description = getErrorDescription(code);
     std::string htmlBody = generateHtmlBody(code, message, description);
-    
+
     std::ostringstream response;
     response << "HTTP/1.1 " << code << " " << message << "\r\n"
              << "Content-Type: text/html; charset=UTF-8\r\n"
@@ -342,38 +284,14 @@ std::string HttpError::generateErrorResponse(int code) {
              << "Connection: close\r\n"
              << "\r\n"
              << htmlBody;
-    
+
     return response.str();
 }
 
 std::string HttpError::generateErrorResponse(int code, const std::string& customMessage) {
-    // 1️⃣ Sprawdź czy istnieje custom error page (priorytet dla custom page)
-    if (hasCustomErrorPage(code)) {
-        std::string customPath = getCustomErrorPagePath(code);
-        
-        if (fileExists(customPath) && isValidPath(customPath)) {
-            std::string customContent = readFileContent(customPath);
-            
-            if (!customContent.empty()) {
-                std::string message = getErrorMessage(code);
-                
-                std::ostringstream response;
-                response << "HTTP/1.1 " << code << " " << message << "\r\n"
-                         << "Content-Type: text/html; charset=UTF-8\r\n"
-                         << "Content-Length: " << customContent.length() << "\r\n"
-                         << "Connection: close\r\n"
-                         << "\r\n"
-                         << customContent;
-                
-                return response.str();
-            }
-        }
-    }
-    
-    // 2️⃣ Fallback - użyj domyślnej strony z custom message
     std::string message = getErrorMessage(code);
     std::string htmlBody = generateHtmlBody(code, message, customMessage);
-    
+
     std::ostringstream response;
     response << "HTTP/1.1 " << code << " " << message << "\r\n"
              << "Content-Type: text/html; charset=UTF-8\r\n"
@@ -381,7 +299,7 @@ std::string HttpError::generateErrorResponse(int code, const std::string& custom
              << "Connection: close\r\n"
              << "\r\n"
              << htmlBody;
-    
+
     return response.str();
 }
 

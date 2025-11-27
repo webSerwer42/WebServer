@@ -64,7 +64,7 @@ void CoreEngine::recivNClose(size_t el)
       {
          std::cout << "Empty or invalid HTTP request detected!" << std::endl;
          HttpError errorHandler;
-         std::string errorResponse = errorHandler.generateErrorResponse(400, 
+         std::string errorResponse = errorHandler.generateCostumErrorResponse(400, 
             "The request is empty or does not contain valid HTTP headers.");
          send(pollFDs[el].fd, errorResponse.c_str(), errorResponse.size(), 0);
          close(pollFDs[el].fd);
@@ -76,7 +76,7 @@ void CoreEngine::recivNClose(size_t el)
       {
          std::cout << "Request too large! Buffer full." << std::endl;
          HttpError errorHandler;
-         std::string errorResponse = errorHandler.generateErrorResponse(413,
+         std::string errorResponse = errorHandler.generateCostumErrorResponse(413,
             "The request payload exceeds the maximum buffer size of 1024 bytes.");
          send(pollFDs[el].fd, errorResponse.c_str(), errorResponse.size(), 0);
          close(pollFDs[el].fd);
@@ -119,7 +119,7 @@ void CoreEngine::sendToClient(size_t el)
       std::cerr << "Exception in sendToClient: " << e.what() << std::endl;
       
       HttpError errorHandler;
-      std::string errorResponse = errorHandler.generateErrorResponse(500,
+      std::string errorResponse = errorHandler.generateCostumErrorResponse(500,
          "An internal error occurred while processing your request.");
       send(pollFDs[el].fd, errorResponse.c_str(), errorResponse.size(), 0);
    }

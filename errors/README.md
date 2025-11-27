@@ -1,6 +1,6 @@
 # 🚨 System Obsługi Błędów HTTP
 
-System obsługi błędów HTTP oparty na standardzie **MDN Web Docs** z pięknymi stronami HTML.
+System obsługi błędów HTTP
 
 ---
 
@@ -426,7 +426,3 @@ System oparty na oficjalnej dokumentacji:
 - 🌐 [MDN HTTP Status Codes](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status)
 - 📖 [RFC 7231 - HTTP/1.1 Semantics](https://tools.ietf.org/html/rfc7231)
 - 📖 [RFC 7235 - HTTP/1.1 Authentication](https://tools.ietf.org/html/rfc7235)
-
----
-
-**Stworzone z ❤️ dla projektu webserv**

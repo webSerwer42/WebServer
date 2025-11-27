@@ -1,7 +1,7 @@
 // PRZYKŁADY UŻYCIA HttpError w różnych częściach serwera
 // Ten plik pokazuje jak obsługiwać różne błędy HTTP
 
-#include "errors/error.hpp"
+#include "../error.hpp"
 #include <iostream>
 
 void exampleUsage() {
