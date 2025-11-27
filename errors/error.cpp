@@ -6,7 +6,7 @@
 /*   By: agorski <agorski@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/26 14:37:10 by agorski           #+#    #+#             */
-/*   Updated: 2025/11/27 15:24:20 by agorski          ###   ########.fr       */
+/*   Updated: 2025/11/27 15:33:45 by agorski          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -161,7 +161,7 @@ std::string HttpError::getErrorDescription(int code) {
 
 std::string HttpError::generateHtmlBody(int code, const std::string& message, const std::string& description) {
     std::ostringstream html;
-    
+
     html << "<!DOCTYPE html>\n"
          << "<html>\n"
          << "<head>\n"
@@ -173,7 +173,7 @@ std::string HttpError::generateHtmlBody(int code, const std::string& message, co
          << "<p>" << description << "</p>\n"
          << "</body>\n"
          << "</html>";
-    
+
     return html.str();
 }
 
@@ -203,7 +203,7 @@ std::string HttpError::readFileContent(const std::string& path) const {
     std::ostringstream content;
     content << file.rdbuf(); // wczytaj cały plik do strumienia
     file.close();
-    
+
     return content.str();
 }
 
@@ -240,34 +240,34 @@ std::string HttpError::getDefaultErrorPagePath(int code) const {
 std::string HttpError::generateErrorResponse(int code) {
     // Sprawdź czy istnieje default error page
     if (hasDefaultErrorPage(code)) {
-        std::string defoultPath = getDefaultErrorPagePath(code);
+        std::string defaultPath = getDefaultErrorPagePath(code);
 
         // Sprawdź czy plik nadal istnieje i jest dostępny
-        if (fileExists(defoultPath) && isValidPath(defoultPath)) {
-            std::string defoultContent = readFileContent(defoultPath);
+        if (fileExists(defaultPath) && isValidPath(defaultPath)) {
+            std::string defaultContent = readFileContent(defaultPath);
 
             // Jeśli udało się wczytać - użyj default page
-            if (!defoultContent.empty()) {
+            if (!defaultContent.empty()) {
                 std::string message = getErrorMessage(code);
 
                 std::ostringstream response;
                 response << "HTTP/1.1 " << code << " " << message << "\r\n"
                          << "Content-Type: text/html; charset=UTF-8\r\n"
-                         << "Content-Length: " << defoultContent.length() << "\r\n"
+                         << "Content-Length: " << defaultContent.length() << "\r\n"
                          << "Connection: close\r\n"
                          << "\r\n"
-                         << defoultContent;
+                         << defaultContent;
 
                 return response.str();
             } else {
                 // Plik pusty lub błąd odczytu - loguj warning
                 std::cerr << "Warning: Could not read default error page: " 
-                          << defoultPath << std::endl;
+                          << defaultPath << std::endl;
             }
         } else {
             // Plik już nie istnieje lub stracił uprawnienia
             std::cerr << "Warning: Custom error page no longer accessible: " 
-                      << defoultPath << std::endl;
+                      << defaultPath << std::endl;
             code = 500; // Zmień kod na 500 Internal Server Error
         }
     }

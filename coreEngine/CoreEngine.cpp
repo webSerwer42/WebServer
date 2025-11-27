@@ -58,7 +58,7 @@ void CoreEngine::setSocket(size_t i)
 void CoreEngine::coreEngine()
 {
    // this function will be adjusted to data provided after parsing config file
-   
+
    size_t j = 0;
    // initializig listeling sockets by every config 
    for(size_t i = 0; i < serversCfg.size(); i++)
@@ -118,7 +118,7 @@ void CoreEngine::coreEngine()
       }
       usleep(100000);
    }
-   
+
    close(socketFD[0]);
    close(socketFD[1]);
    // close clientFD
