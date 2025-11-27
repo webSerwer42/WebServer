@@ -62,17 +62,16 @@ void CoreEngine::recivNClose(size_t el)
 
 void CoreEngine::sendToClient(size_t el)
 {
-   client &client = this->getClientByFD(pollFDs[el].fd);
-   std::string requestStr(client.buffer);
-   Http response(requestStr);
-   std::string responseStr = response.response();
+   std::string requestStr(buffer);
+   Http response(requestStr, serversCfg[0]); // temp serverCfg
+      std::string responseStr = response.responseBuilder();
+      int byteSend = send(pollFDs[el].fd, responseStr.c_str(), responseStr.size(), 0); // check if string functions are ok
+      if (byteSend == -1)
+      {
+         std::cerr << "send() failed: " << strerror(errno) << std::endl;// potrzebna obsluga bledow (500)?
+         return;
+      }
    std::string str = "Packet send sukcesfully!\n";
-   int byteSend = send(pollFDs[el].fd, responseStr.c_str(), responseStr.size(), 0); // check if string functions are ok
-   if (byteSend == -1)
-   {
-      std::cerr << "send() failed: " << strerror(errno) << std::endl;
-      return;
-   }
    pollFDs[el].events = POLLIN;
    // std::cout << "client: " << pollFDs[el].fd << " ready to send" << std::endl;
 }
