@@ -1,6 +1,7 @@
 //Copyright [2025] <Piotr Ruszkiewicz> <pruszkie@student.42warsaw.pl>
 
 #include "CoreEngine.hpp"
+#include "../errors/error.hpp"
 
 CoreEngine::CoreEngine(const std::vector<ServerConfig> &serversCfg) : serversCfg(serversCfg), serv(NULL), 
    pollFDs(NULL), lSockNum(0), poolTimeout(1000), pollFDsNum(0), backlogNum(128)
@@ -63,7 +64,12 @@ void CoreEngine::coreEngine()
    // initializig listeling sockets by every config 
    for(size_t i = 0; i < serversCfg.size(); i++)
    {
-      getaddrinfo(serversCfg[i].host.c_str(), serversCfg[i].listen_port.c_str(), &hints, &serv); 
+      int status = getaddrinfo(serversCfg[i].host.c_str(), serversCfg[i].listen_port.c_str(), &hints, &serv);
+      if (status != 0)
+      {
+         std::cerr << "getaddrinfo() failed for server " << i << ": " << gai_strerror(status) << std::endl;
+         continue; // skip this server and try next one
+      }
       std::cout << "server nr: " << i << std::endl;
       addrinfo *res = serv;
       while (true)
@@ -71,6 +77,7 @@ void CoreEngine::coreEngine()
          setSocket(j);
          // creating a pararel vector to pollFD just to distiquish listening from client socket
          isClientFD.push_back(false);
+         serverFDtoIndex[socketFD[j]] = i; // mapowanie server FD -> config index
          lSockNum++;
          // realloc is nessesary due to dynamics changes to pollfd array, it holds all sockets events data 
          pollFDs = (pollfd *)realloc(pollFDs, (lSockNum + 1) * sizeof(pollfd));
@@ -107,12 +114,46 @@ void CoreEngine::coreEngine()
             if (pollFDs[i].revents & POLLHUP) // consider it coz might be unnesesary.
             {
                std::cout << "client on FD: " << pollFDs[i].fd << " has disconnected" << std::endl;
-               exit(EXIT_FAILURE);
+               close(pollFDs[i].fd);
+               // Clean up mappings
+               clientToServer.erase(i);
+               // Remove from pollFDs array
+               for (size_t k = i; k < pollFDsNum - 1; k++)
+               {
+                  pollFDs[k] = pollFDs[k + 1];
+                  if (clientToServer.find(k + 1) != clientToServer.end())
+                  {
+                     clientToServer[k] = clientToServer[k + 1];
+                     clientToServer.erase(k + 1);
+                  }
+               }
+               pollFDs = (pollfd *)realloc(pollFDs, (pollFDsNum - 1) * sizeof(pollfd));
+               pollFDsNum--;
+               i--; // adjust loop counter
             }
             if (pollFDs[i].revents & POLLERR)
             {
-               std::cout << "poll() failed: revent return POLLERR" << std::endl;
-               exit(EXIT_FAILURE); // propably to remove
+               std::cout << "poll() failed: revent return POLLERR on FD: " << pollFDs[i].fd << std::endl;
+               // Send HTTP 500 error before closing
+               HttpError errorHandler;
+               std::string errorResponse = errorHandler.generateErrorResponse(500);
+               send(pollFDs[i].fd, errorResponse.c_str(), errorResponse.size(), 0);
+               close(pollFDs[i].fd);
+               // Clean up mappings
+               clientToServer.erase(i);
+               // Remove from pollFDs array
+               for (size_t k = i; k < pollFDsNum - 1; k++)
+               {
+                  pollFDs[k] = pollFDs[k + 1];
+                  if (clientToServer.find(k + 1) != clientToServer.end())
+                  {
+                     clientToServer[k] = clientToServer[k + 1];
+                     clientToServer.erase(k + 1);
+                  }
+               }
+               pollFDs = (pollfd *)realloc(pollFDs, (pollFDsNum - 1) * sizeof(pollfd));
+               pollFDsNum--;
+               i--; // adjust loop counter
             }
          }
       }

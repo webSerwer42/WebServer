@@ -6,7 +6,7 @@
 /*   By: agorski <agorski@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/26 14:37:10 by agorski           #+#    #+#             */
-/*   Updated: 2025/11/27 15:33:45 by agorski          ###   ########.fr       */
+/*   Updated: 2025/11/27 17:29:00 by agorski          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -289,6 +289,41 @@ std::string HttpError::generateErrorResponse(int code) {
 }
 
 std::string HttpError::generateErrorResponse(int code, const std::string& customMessage) {
+    
+        // Sprawdź czy istnieje default error page
+    if (hasDefaultErrorPage(code)) {
+        std::string defaultPath = getDefaultErrorPagePath(code);
+
+        // Sprawdź czy plik nadal istnieje i jest dostępny
+        if (fileExists(defaultPath) && isValidPath(defaultPath)) {
+            std::string defaultContent = readFileContent(defaultPath);
+
+            // Jeśli udało się wczytać - użyj default page
+            if (!defaultContent.empty()) {
+                std::string message = getErrorMessage(code);
+
+                std::ostringstream response;
+                response << "HTTP/1.1 " << code << " " << message << "\r\n"
+                         << "Content-Type: text/html; charset=UTF-8\r\n"
+                         << "Content-Length: " << defaultContent.length() << "\r\n"
+                         << "Connection: close\r\n"
+                         << "\r\n"
+                         << defaultContent;
+
+                return response.str();
+            } else {
+                // Plik pusty lub błąd odczytu - loguj warning
+                std::cerr << "Warning: Could not read default error page: " 
+                          << defaultPath << std::endl;
+            }
+        } else {
+            // Plik już nie istnieje lub stracił uprawnienia
+            std::cerr << "Warning: Custom error page no longer accessible: " 
+                      << defaultPath << std::endl;
+            code = 500; // Zmień kod na 500 Internal Server Error
+        }
+    }
+    
     std::string message = getErrorMessage(code);
     std::string htmlBody = generateHtmlBody(code, message, customMessage);
 

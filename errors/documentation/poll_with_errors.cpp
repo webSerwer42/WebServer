@@ -1,5 +1,6 @@
 // Copyright [2025] <Piotr Ruszkiewicz> <pruszkie@student.42warsaw.pl>
 // Ulepszona wersja z obsługą błędów HTTP
+// Copyright [2025] <Antek Górski> <agorski@student.42warsaw.pl>
 
 #include "CoreEngine.hpp"
 #include "../http/Http.hpp"
