@@ -1,4 +1,4 @@
-// Copyright [2025] <Piotr Ruszkiewicz> <pruszkie@student.42warsaw.pl>
+//Copyright [2025] <Piotr Ruszkiewicz> <pruszkie@student.42warsaw.pl>
 
 #ifndef COREENGINE_HPP
 #define COREENGINE_HPP
@@ -11,13 +11,11 @@
 #include <netinet/in.h> // struct sockaddr_in, struct in_addr
 #include <netdb.h>      // for getaddrinfo and addrinfo
 #include <poll.h>       // for poolfd
-#include <string>
-#include <stdint.h>
+#include <string>   
+#include <stdint.h>     
 #include <stdlib.h>     // for exit
 #include <sys/socket.h> // for sockets
 #include <unistd.h>     // for close read write
-#include <vector>
-#include <sstream>
 #include <vector>   
 #include <map>          // for server to client mapping
 

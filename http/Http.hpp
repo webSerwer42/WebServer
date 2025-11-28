@@ -7,12 +7,13 @@
 #include <sstream>
 #include <stdexcept>
 #include "../configReader/config.hpp"
+#include "../coreEngine/CoreEngine.hpp"
 
 class Http {
 
     private:
         // server data
-        ServerConfig &serverData;
+        ServerConfig serverData;
 
         // Request data
         std::string requestMethod;
@@ -42,7 +43,9 @@ class Http {
     public:
 
         // Constructor for creating HTTP responses
-        Http(std::string& rawRequest, ServerConfig &serverData);
+        Http(std::string& rawRequest, ServerConfig &serverConfig) : serverData(serverConfig) {
+            parseRequest(rawRequest);
+        }
 
         // Generates the HTTP response string
         std::string responseBuilder();
