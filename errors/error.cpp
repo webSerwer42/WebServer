@@ -14,6 +14,9 @@
 #include <fstream>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <cstdlib>
+#include <climits>
+#include <cstring>
 
 HttpError::HttpError() {
     initializeErrorMaps();
@@ -179,19 +182,84 @@ std::string HttpError::generateHtmlBody(int code, const std::string& message, co
 
 // ============ METODY POMOCNICZE DLA DEFAULT ERROR PAGES ============
 
+// Helper function to decode a hex digit
+static int hexToInt(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+// URL decode a string to handle encoded path traversal sequences
+static std::string urlDecode(const std::string& str) {
+    std::string result;
+    result.reserve(str.length());
+    
+    for (size_t i = 0; i < str.length(); ++i) {
+        if (str[i] == '%' && i + 2 < str.length()) {
+            int high = hexToInt(str[i + 1]);
+            int low = hexToInt(str[i + 2]);
+            if (high >= 0 && low >= 0) {
+                result += static_cast<char>((high << 4) | low);
+                i += 2;
+                continue;
+            }
+        }
+        result += str[i];
+    }
+    return result;
+}
+
 bool HttpError::fileExists(const std::string& path) const {
     struct stat buffer;
     return (stat(path.c_str(), &buffer) == 0 && S_ISREG(buffer.st_mode));
 }
 
 bool HttpError::isValidPath(const std::string& path) const {
-    // Sprawdź czy ścieżka nie zawiera path traversal
-    if (path.find("..") != std::string::npos) {
+    // First, decode URL-encoded characters to catch encoded ".." sequences
+    std::string decodedPath = urlDecode(path);
+    
+    // Check for ".." in the decoded path as a quick filter
+    if (decodedPath.find("..") != std::string::npos) {
         return false;
     }
-
-    // Sprawdź czy plik istnieje i jest czytelny
-    return (access(path.c_str(), R_OK) == 0);
+    
+    // Use realpath() to resolve the absolute, canonical path
+    // This handles symlinks, "..", "." and normalizes the path
+    char resolvedPath[PATH_MAX];
+    if (realpath(decodedPath.c_str(), resolvedPath) == NULL) {
+        // File doesn't exist or path cannot be resolved
+        return false;
+    }
+    
+    // Get current working directory as the base allowed directory
+    char cwdBuffer[PATH_MAX];
+    if (getcwd(cwdBuffer, PATH_MAX) == NULL) {
+        return false;
+    }
+    
+    // Ensure the resolved path starts with the current working directory
+    // This prevents path traversal outside the server's root directory
+    std::string resolvedStr(resolvedPath);
+    std::string cwdStr(cwdBuffer);
+    
+    // Check if resolved path is within the allowed directory
+    // Must start with CWD and either be exactly CWD or have a path separator after CWD
+    if (resolvedStr.length() < cwdStr.length()) {
+        return false;
+    }
+    if (resolvedStr.substr(0, cwdStr.length()) != cwdStr) {
+        // The resolved path is outside the allowed directory
+        return false;
+    }
+    // If the resolved path is longer than CWD, ensure next char is a path separator
+    // This prevents directory prefix attacks (e.g., /var/www vs /var/wwwmalicious)
+    if (resolvedStr.length() > cwdStr.length() && resolvedStr[cwdStr.length()] != '/') {
+        return false;
+    }
+    
+    // Check if file exists and is readable
+    return (access(resolvedPath, R_OK) == 0);
 }
 
 std::string HttpError::readFileContent(const std::string& path) const {
