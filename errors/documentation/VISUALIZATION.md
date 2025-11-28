@@ -531,7 +531,7 @@ KLIENT → GET /forbidden
 
 ### Scenariusz 8: Path Traversal Attack
 ```
-ATTACKER → setCustomErrorPage(404, "../../../etc/passwd")
+ATTACKER → setDefaultErrorPage(404, "../../../etc/passwd")
             │
             ▼
        isValidPath() checks:
