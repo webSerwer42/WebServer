@@ -18,6 +18,8 @@
 #include <unistd.h>     // for close read write
 #include <vector>
 #include <sstream>
+#include <vector>   
+#include <map>          // for server to client mapping
 
 #include "../configReader/config.hpp"
 
@@ -56,6 +58,33 @@ class CoreEngine
         void sendToClient(size_t i);
         void coreEngine();
         // std::string getBuffer();
+private:
+    addrinfo hints; // base config of server
+    std::vector<ServerConfig> serversCfg; // list of object parsed cfgfiles
+    addrinfo *serv; 
+    sockaddr_storage clientSockaddr; // information about client
+    std::vector<int> socketFD; // vector holding all socketsFD
+    std::vector<bool> isClientFD; // consider switching it to map
+    std::map<int, size_t> serverFDtoIndex; // mapowanie server FD -> indeks w serversCfg
+    std::map<size_t, size_t> clientToServer; // mapowanie client pollFD index -> server index
+    pollfd *pollFDs; // struct that holds data about socketFD, its events and responses to it
+    size_t lSockNum; // number of listening sockets
+    int poolTimeout; // time interval for poll() checking for event
+    size_t pollFDsNum; // number of structs corresponding total number of sockets
+    size_t backlogNum; // number of pending connection that listen can hold
+    // temporary
+    char buffer[1024]; // data stream accapted by recv()
+    int byteRecived; // number of bytes accepted by recv()
+
+public:
+    CoreEngine(const std::vector<ServerConfig> &serverCfg);
+    void setSocket(size_t i);
+    void setConnection(size_t i);
+    void recivNClose(size_t i);
+    void sendToClient(size_t i);
+    void coreEngine();
+    std::string getBuffer();
+    void closeClientConnection(size_t el); // funkcja pomocnicza do zamykania połączeń
 };
 
 #endif

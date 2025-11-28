@@ -1,8 +1,9 @@
-[config reader README.md](configReader/README.md)
-[core engine README.md](coreEngine/README.md)
-[CGI module README.md](cgi/README.md)
+[config reader README.md](configReader/README.md)  
+[core engine README.md](coreEngine/README.md)  
+[CGI module README.md](cgi/README.md)  
+[error handling README.md](errors/README.md)  
 
-#Propose to standardize for Chrome browser compatibility
+# Propozycja ustandaryzowania dla zgodności z przeglądarką Chrome
 
 TO DO LIST:  
 - [ ] Error handling in main loop (exceptions)
