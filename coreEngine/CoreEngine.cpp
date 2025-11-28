@@ -68,6 +68,10 @@ void CoreEngine::coreEngine()
       if (status != 0)
       {
          std::cerr << "getaddrinfo() failed for server " << i << ": " << gai_strerror(status) << std::endl;
+         if (serv != NULL) {
+            freeaddrinfo(serv);
+            serv = NULL;
+         }
          continue; // skip this server and try next one
       }
       std::cout << "server nr: " << i << std::endl;
