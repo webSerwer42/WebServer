@@ -80,7 +80,7 @@ void CoreEngine::recivNClose(size_t el)
    {
 
       //czy request jest pusty (400)
-      std::string requestStr(buffer);
+      std::string requestStr(client.buffer);
       if (requestStr.empty() || requestStr.find("HTTP") == std::string::npos)
       {
          std::cout << "Empty or invalid HTTP request detected!" << std::endl;
@@ -94,7 +94,7 @@ void CoreEngine::recivNClose(size_t el)
       }
       
       //czy buffer jest za mały (413)
-      if (byteRecived == (int)(sizeof(buffer) - 1))
+      if (client.byteRecived == (int)(sizeof(client.buffer) - 1))
       {
          std::cout << "Request too large! Buffer full." << std::endl;
          HttpError errorHandler;
@@ -117,7 +117,8 @@ void CoreEngine::sendToClient(size_t el)
 
 try
 {
-   std::string requestStr(buffer);
+   client &client = this->getClientByFD(pollFDs[el].fd);
+   std::string requestStr(client.buffer);
    size_t serverIndex = clientToServer[el]; // pobierz indeks serwera dla tego klienta
    
    Http response(requestStr, serversCfg[serverIndex]); // użyj odpowiedniej konfiguracji serwera
