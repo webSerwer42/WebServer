@@ -14,6 +14,8 @@
 #include <fstream>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <cstdlib>
+#include <climits>
 
 HttpError::HttpError() {
     initializeErrorMaps();
@@ -185,13 +187,28 @@ bool HttpError::fileExists(const std::string& path) const {
 }
 
 bool HttpError::isValidPath(const std::string& path) const {
-    // Sprawdź czy ścieżka nie zawiera path traversal
-    if (path.find("..") != std::string::npos) {
+    // Use realpath() to normalize the path and resolve any path traversal sequences
+    // This handles "..", ".", symbolic links, and redundant slashes
+    char resolvedPath[PATH_MAX];
+    
+    if (realpath(path.c_str(), resolvedPath) == NULL) {
+        // realpath() failed - file doesn't exist or path is invalid
+        return false;
+    }
+    
+    // Verify the resolved path still points to the same intended file
+    // by checking that the file exists and is readable
+    if (access(resolvedPath, R_OK) != 0) {
+        return false;
+    }
+    
+    // Ensure it's a regular file, not a directory or special file
+    struct stat buffer;
+    if (stat(resolvedPath, &buffer) != 0 || !S_ISREG(buffer.st_mode)) {
         return false;
     }
 
-    // Sprawdź czy plik istnieje i jest czytelny
-    return (access(path.c_str(), R_OK) == 0);
+    return true;
 }
 
 std::string HttpError::readFileContent(const std::string& path) const {
