@@ -4,10 +4,12 @@ SRCS = main.cpp \
 		http/Http.cpp \
 		coreEngine/CoreEngine.cpp \
 		coreEngine/poll.cpp \
+		coreEngine/utils.cpp \
 		http/stringUtils.cpp \
 		configReader/config.cpp \
 		configReader/printConfig.cpp \
-		utils/utils.cpp
+		utils/utils.cpp \
+		errors/error.cpp
 
 
 OBJS = ${SRCS:.cpp=.o}
