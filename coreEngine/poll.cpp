@@ -32,29 +32,35 @@ void CoreEngine::closeClientConnection(size_t el)
 void CoreEngine::setConnection(size_t i)
 {
    socklen_t addrLen = sizeof(sockaddr_storage);
-   int clientFD = accept(pollFDs[i].fd, (struct sockaddr *)&clientSockaddr, &addrLen);
-   if (clientFD == -1)
+   client client;
+   memset(&client.clientSockaddr, 0, sizeof(sockaddr_in));
+
+   clientVec.push_back(client);
+   client.FD = accept(pollFDs[i].fd, (struct sockaddr *)&client.clientSockaddr, &addrLen);
+   if (client.FD == -1)
    {
       std::cerr << "accept() failed: " << strerror(errno) << std::endl;
       exit(1);
    }
    pollFDs = (pollfd *)realloc(pollFDs, (pollFDsNum + 1) * sizeof(pollfd));
-   pollFDs[pollFDsNum].fd = clientFD;
+   pollFDs[pollFDsNum].fd = client.FD;
    pollFDs[pollFDsNum].revents = 0;
 
    isClientFD[pollFDsNum] = true;
    clientToServer[pollFDsNum] = serverFDtoIndex[pollFDs[i].fd]; // zapisz który serwer przyjął połączenie
    pollFDs[pollFDsNum].events = POLLIN;
    pollFDsNum++;
+   this->clientVec.push_back(client);
    std::cout << "socket: " << pollFDs[i].fd << " ready to connect" << std::endl;
 }
 
 void CoreEngine::recivNClose(size_t el)
 {
    // recived date is send to buffer, for now its strign
-   byteRecived = recv(pollFDs[el].fd, buffer, 1024, 0);
-   buffer[byteRecived] = '\0';
-   if (byteRecived == -1)
+   client &client = this->getClientByFD(pollFDs[el].fd);
+   client.byteRecived = recv(pollFDs[el].fd, client.buffer, 1024, 0);
+   client.buffer[client.byteRecived] = '\0';
+   if (client.byteRecived == -1)
    {
       std::cerr << "recv() failed: " << strerror(errno) << std::endl;
       // Wyślij 500 Internal Server Error
@@ -66,7 +72,7 @@ void CoreEngine::recivNClose(size_t el)
       return;
    }
    // this is closing socket logic, when send EOF by client EOF
-   else if (byteRecived == 0)
+   else if (client.byteRecived == 0)
    {
       closeClientConnection(el);
    }
@@ -101,7 +107,7 @@ void CoreEngine::recivNClose(size_t el)
       }
 
       // response to HTTP reqest
-      std::cout << "--->buffer: " << buffer << std::endl; // print buffer
+      std::cout << "--->buffer: " << client.buffer << std::endl; // print buffer
       pollFDs[el].events = POLLOUT;
    }
 }
