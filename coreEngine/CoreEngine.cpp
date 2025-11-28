@@ -1,6 +1,7 @@
 //Copyright [2025] <Piotr Ruszkiewicz> <pruszkie@student.42warsaw.pl>
 
 #include "CoreEngine.hpp"
+#include "../errors/error.hpp"
 
 CoreEngine::CoreEngine(const std::vector<ServerConfig> &serversCfg) : serversCfg(serversCfg), serv(NULL), 
    pollFDs(NULL), lSockNum(0), poolTimeout(1000), pollFDsNum(0), backlogNum(128)
@@ -58,12 +59,21 @@ void CoreEngine::setSocket(size_t i)
 void CoreEngine::coreEngine()
 {
    // this function will be adjusted to data provided after parsing config file
-   
+
    size_t j = 0;
    // initializig listeling sockets by every config 
    for(size_t i = 0; i < serversCfg.size(); i++)
    {
-      getaddrinfo(serversCfg[i].host.c_str(), serversCfg[i].listen_port.c_str(), &hints, &serv); 
+      int status = getaddrinfo(serversCfg[i].host.c_str(), serversCfg[i].listen_port.c_str(), &hints, &serv);
+      if (status != 0)
+      {
+         std::cerr << "getaddrinfo() failed for server " << i << ": " << gai_strerror(status) << std::endl;
+         if (serv != NULL) {
+            freeaddrinfo(serv);
+            serv = NULL;
+         }
+         continue; // skip this server and try next one
+      }
       std::cout << "server nr: " << i << std::endl;
       addrinfo *res = serv;
       while (true)
@@ -71,6 +81,7 @@ void CoreEngine::coreEngine()
          setSocket(j);
          // creating a pararel vector to pollFD just to distiquish listening from client socket
          isClientFD.push_back(false);
+         serverFDtoIndex[socketFD[j]] = i; // mapowanie server FD -> config index
          lSockNum++;
          // realloc is nessesary due to dynamics changes to pollfd array, it holds all sockets events data 
          pollFDs = (pollfd *)realloc(pollFDs, (lSockNum + 1) * sizeof(pollfd));
@@ -107,18 +118,25 @@ void CoreEngine::coreEngine()
             if (pollFDs[i].revents & POLLHUP) // consider it coz might be unnesesary.
             {
                std::cout << "client on FD: " << pollFDs[i].fd << " has disconnected" << std::endl;
-               exit(EXIT_FAILURE);
+               closeClientConnection(i);
+               i--; // adjust loop counter
             }
             if (pollFDs[i].revents & POLLERR)
             {
-               std::cout << "poll() failed: revent return POLLERR" << std::endl;
-               exit(EXIT_FAILURE); // propably to remove
+               std::cout << "poll() failed: revent return POLLERR on FD: " << pollFDs[i].fd << std::endl;
+               // Send HTTP 500 error before closing
+               HttpError errorHandler;
+               std::string errorResponse = errorHandler.generateErrorResponse(500);
+               send(pollFDs[i].fd, errorResponse.c_str(), errorResponse.size(), 0);
+               
+               closeClientConnection(i);
+               i--; // adjust loop counter
             }
          }
       }
       usleep(100000);
    }
-   
+
    close(socketFD[0]);
    close(socketFD[1]);
    // close clientFD

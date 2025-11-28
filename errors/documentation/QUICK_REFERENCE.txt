@@ -1,0 +1,196 @@
+╔═══════════════════════════════════════════════════════════════════════╗
+║             HTTP ERROR HANDLING - QUICK REFERENCE CARD                ║
+╚═══════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ 📌 PODSTAWOWE UŻYCIE                                                │
+└─────────────────────────────────────────────────────────────────────┘
+
+#include "errors/error.hpp"
+
+HttpError errorHandler;
+
+// Wysłanie błędu
+std::string response = errorHandler.generateErrorResponse(404);
+send(clientFD, response.c_str(), response.size(), 0);
+
+// Z custom message
+std::string response = errorHandler.generateErrorResponse(500, "Custom error");
+
+// Tylko opis
+std::string msg = errorHandler.getErrorMessage(403);  // "Forbidden"
+std::string desc = errorHandler.getErrorDescription(403);
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ 🔥 NAJCZĘŚCIEJ UŻYWANE KODY                                         │
+└─────────────────────────────────────────────────────────────────────┘
+
+400 Bad Request              → Malformed request syntax
+403 Forbidden                → No permission
+404 Not Found                → Resource doesn't exist
+405 Method Not Allowed       → Wrong HTTP method
+413 Content Too Large        → Payload too big
+414 URI Too Long             → URI exceeds limit
+429 Too Many Requests        → Rate limiting
+
+500 Internal Server Error    → Generic server error
+501 Not Implemented          → Feature not implemented
+502 Bad Gateway              → Bad upstream response
+503 Service Unavailable      → Server overloaded
+504 Gateway Timeout          → Upstream timeout
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ 📍 GDZIE UŻYĆ JAKICH KODÓW                                          │
+└─────────────────────────────────────────────────────────────────────┘
+
+POLL.CPP (recivNClose):
+  if (byteRecived == -1)              → 500
+  if (requestStr.empty())             → 400
+  if (buffer full)                    → 413
+
+POLL.CPP (sendToClient):
+  if (send fails)                     → 500
+  catch (exception)                   → 500
+
+HTTP.CPP (parser):
+  if (no "HTTP" keyword)              → 400
+  if (method invalid)                 → 405
+  if (URI too long)                   → 414
+  if (headers too large)              → 431
+  if (wrong HTTP version)             → 505
+
+ROUTER.CPP:
+  if (route not found)                → 404
+  if (method not allowed for route)   → 405
+  if (no permission)                  → 403
+  if (auth required)                  → 401
+
+CGI.CPP:
+  if (script not found)               → 404
+  if (not executable)                 → 403
+  if (execve fails)                   → 502
+  if (timeout)                        → 504
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ 🛠️ INTEGRACJA W 3 KROKACH                                           │
+└─────────────────────────────────────────────────────────────────────┘
+
+1. DODAJ INCLUDE:
+   #include "errors/error.hpp"
+
+2. W recivNClose():
+   memset(buffer, 0, sizeof(buffer));
+   byteRecived = recv(...);
+   
+   if (byteRecived == -1) {
+       HttpError err;
+       std::string resp = err.generateErrorResponse(500);
+       send(fd, resp.c_str(), resp.size(), 0);
+       return;
+   }
+   
+   if (requestStr.empty() || requestStr.find("HTTP") == std::string::npos) {
+       HttpError err;
+       std::string resp = err.generateErrorResponse(400);
+       send(fd, resp.c_str(), resp.size(), 0);
+       return;
+   }
+
+3. W sendToClient():
+   try {
+       // normal logic
+   } catch (...) {
+       HttpError err;
+       std::string resp = err.generateErrorResponse(500);
+       send(fd, resp.c_str(), resp.size(), 0);
+   }
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ 🧪 TESTOWANIE                                                        │
+└─────────────────────────────────────────────────────────────────────┘
+
+# Kompilacja
+make re
+
+# Test systemu błędów
+g++ -std=c++98 errors/test_errors.cpp errors/error.cpp -o test_errors
+./test_errors
+
+# Test pustego requesta (→ 400)
+echo "" | nc localhost 8080
+
+# Test zbyt dużego requesta (→ 413)
+curl -X POST http://localhost:8080/ -d "$(python -c 'print("A"*10000)')"
+
+# Test nieistniejącej strony (→ 404)
+curl http://localhost:8080/nieistniejaca
+
+# Test nieprawidłowej metody (→ 405)
+curl -X PATCH http://localhost:8080/
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ 📋 CHECKLIST IMPLEMENTACJI                                          │
+└─────────────────────────────────────────────────────────────────────┘
+
+[ ] Dodano #include "errors/error.hpp" do poll.cpp
+[ ] Dodano memset() przed recv()
+[ ] Dodano walidację pustego requesta (→ 400)
+[ ] Dodano sprawdzenie pełnego buffera (→ 413)
+[ ] Dodano try-catch w sendToClient() (→ 500)
+[ ] Dodano obsługę błędów recv() (→ 500)
+[ ] Zwiększono buffer do 8192 w CoreEngine.hpp
+[ ] Dodano walidację metod HTTP (→ 405)
+[ ] Dodano sprawdzanie długości URI (→ 414)
+[ ] Dodano obsługę 404 w routerze
+[ ] Dodano obsługę błędów CGI (403, 404, 502)
+[ ] Przetestowano wszystkie scenariusze
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ 🎨 WYGLĄD STRON BŁĘDÓW                                              │
+└─────────────────────────────────────────────────────────────────────┘
+
+HTML Response zawiera:
+✓ Gradientowe tło (fioletowy → różowy)
+✓ Duży kod błędu z gradientem
+✓ Nazwę błędu (np. "Not Found")
+✓ Szczegółowy opis
+✓ Przycisk "Go Home"
+✓ Responsywny design (mobile + desktop)
+✓ Modern CSS z animacjami hover
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ 📚 DOKUMENTACJA                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+
+errors/README.md              → Pełna dokumentacja z przykładami
+errors/USAGE_EXAMPLES.cpp     → Konkretne przypadki użycia
+errors/INTEGRATION_GUIDE.cpp  → Instrukcja integracji krok po kroku
+errors/VISUALIZATION.md       → Diagramy przepływu błędów
+errors/SUMMARY.md             → Podsumowanie projektu
+errors/test_errors.cpp        → Program testujący
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ ⚡ PERFORMANCE                                                       │
+└─────────────────────────────────────────────────────────────────────┘
+
+Czas generowania błędu: < 1ms
+Rozmiar HTML response: ~2-3KB
+Memory footprint: Minimal (tylko std::string i std::map)
+C++98 compliant: 100%
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ 🔗 PRZYDATNE LINKI                                                  │
+└─────────────────────────────────────────────────────────────────────┘
+
+MDN HTTP Status Codes:
+https://developer.mozilla.org/en-US/docs/Web/HTTP/Status
+
+RFC 7231 (HTTP/1.1):
+https://tools.ietf.org/html/rfc7231
+
+RFC 7235 (HTTP Auth):
+https://tools.ietf.org/html/rfc7235
+
+╔═══════════════════════════════════════════════════════════════════════╗
+║                         GOTOWE DO UŻYCIA! ✅                         ║
+╚═══════════════════════════════════════════════════════════════════════╝

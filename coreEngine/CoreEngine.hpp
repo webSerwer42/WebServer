@@ -17,6 +17,7 @@
 #include <sys/socket.h> // for sockets
 #include <unistd.h>     // for close read write
 #include <vector>   
+#include <map>          // for server to client mapping
 
 #include "../configReader/config.hpp"
 
@@ -29,6 +30,8 @@ private:
     sockaddr_storage clientSockaddr; // information about client
     std::vector<int> socketFD; // vector holding all socketsFD
     std::vector<bool> isClientFD; // consider switching it to map
+    std::map<int, size_t> serverFDtoIndex; // mapowanie server FD -> indeks w serversCfg
+    std::map<size_t, size_t> clientToServer; // mapowanie client pollFD index -> server index
     pollfd *pollFDs; // struct that holds data about socketFD, its events and responses to it
     size_t lSockNum; // number of listening sockets
     int poolTimeout; // time interval for poll() checking for event
@@ -46,6 +49,7 @@ public:
     void sendToClient(size_t i);
     void coreEngine();
     std::string getBuffer();
+    void closeClientConnection(size_t el); // funkcja pomocnicza do zamykania połączeń
 };
 
 #endif
