@@ -243,8 +243,18 @@ bool HttpError::isValidPath(const std::string& path) const {
     std::string resolvedStr(resolvedPath);
     std::string cwdStr(cwdBuffer);
     
-    if (resolvedStr.find(cwdStr) != 0) {
+    // Check if resolved path is within the allowed directory
+    // Must start with CWD and either be exactly CWD or have a path separator after CWD
+    if (resolvedStr.length() < cwdStr.length()) {
+        return false;
+    }
+    if (resolvedStr.substr(0, cwdStr.length()) != cwdStr) {
         // The resolved path is outside the allowed directory
+        return false;
+    }
+    // If the resolved path is longer than CWD, ensure next char is a path separator
+    // This prevents directory prefix attacks (e.g., /var/www vs /var/wwwmalicious)
+    if (resolvedStr.length() > cwdStr.length() && resolvedStr[cwdStr.length()] != '/') {
         return false;
     }
     
