@@ -11,33 +11,41 @@
 class Http {
 
     private:
-        // server data
+        // Reference to server configuration
         ServerConfig &serverData;
+        std::string rawRequestHeader;
+        std::string rawRequestBody;
 
         // Request data
-        std::string requestMethod;
-        std::string requestPath;
-        std::string requestHttpVersion;
-        std::string requestBody;
-        std::map<std::string, std::string> requestHeaders;
+        struct requestData {
+            long long contentLength;
+            std::string method;
+            std::string path;
+            std::string httpVersion;
+            std::map<std::string, std::string> headers;
+            std::string body;
+        } requestData;
         
         // Response data
-        std::map<std::string, std::string> responseHeaders;
-        std::string responseStatusCode;
-        std::string responseBody;
+        struct responseData {
+            std::string responseHttpVersion;
+            std::map<std::string, std::string> responseHeaders;
+            long long clientMaxBodySize;
+            std::string responseHeader;
+            std::string responseStatusCode;
+            std::string responseBody;
+            std::string response;
+        } responseData;
 
-        // Parses a raw HTTP request string and returns an HttpRequest object
+        // Parses a raw HTTP request.
         void parseRequest(const std::string &rawRequest);
-        
-        // Helper functions for parsing
-        void parseRequestLine(const std::string &line);
-        void parseHeaderLine(const std::string &line);
+        void parseHeader(const std::string &rawHeader);
 
         // Response functions
-        void cgiResponse();
-        void getResponse();
-        void postResponse();
-        void deleteResponse();
+        void cgiResponseBuilder();
+        void getResponseBuilder();
+        void postResponseBuilder();
+        void deleteResponseBuilder();
 
     public:
 

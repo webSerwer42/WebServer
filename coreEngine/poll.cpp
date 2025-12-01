@@ -111,8 +111,10 @@ void CoreEngine::sendToClient(size_t el)
    client &client = this->getClientByFD(pollFDs[el].fd);
    try
    {
-      Http response(client.sendBuffer);
-      std::string responseStr = response.response();
+      //Http response(client.sendBuffer);
+      // ned to parse request from buffer
+      Http response(client.sendBuffer, client.serverCfg);
+      std::string responseStr = response.responseBuilder();
       std::cout << "---> What is response: " << responseStr << std::endl;
       int byteSend = send(pollFDs[el].fd, responseStr.c_str() + client.sendOffset, 
          responseStr.size() - client.sendOffset, 0); // check if string functions are ok
