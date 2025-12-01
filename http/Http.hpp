@@ -11,20 +11,26 @@
 class Http {
     
     private:
-    
-    
-    std::string _rawRequest;
     ServerConfig _serverData;
-    
+    const std::string* _rawRequestPtr;  // wskaźnik do oryginalnego requesta
+    size_t _bodyStart;
+    size_t _bodyLen;
+
     struct requestData {
         long long _contentLength;
+        std::string locationRoot;
+        std::string locationIndex;
+        std::string locationRedirect;
+        std::string locationCgiPath;
+        std::string locationCgiExt;
+        std::string locationUploadDir;
+        bool Autoindex;
         std::vector<std::string> _allowedMethods;
         std::string _rawHeader;
-        std::string _rawBody;
         std::string _path;
         std::string _httpVersion;
+        std::string _method;
         std::map<std::string, std::string> _headers;
-        std::string _body;
     } _s_requestData;
         
     struct responseData {
@@ -39,11 +45,15 @@ class Http {
     } _s_responseData;
 
         // Parses a raw HTTP request.
-        void parseRequest();
+        void parseRequest(std::string &rawRequest);
         void parseHeader();
+        bool isMethodAllowed();
+        bool isBodySizeAllowed();
+        void parseConfigFile();
 
         // Response functions
         void responseBuilder();
+        void requestBilder(std::string &rawRequest);
 
         void cgiResponseBuilder();
         void getResponseBuilder();
@@ -53,7 +63,7 @@ class Http {
     public:
 
         // Constructor for creating HTTP responses
-        Http (std::string rawRequest, ServerConfig serverData, bool hasError);
+        Http (std::string &rawRequest, ServerConfig serverData);
 
         // Generates the HTTP response string
         bool getIsError() const;

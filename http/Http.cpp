@@ -1,24 +1,87 @@
 #include "Http.hpp"
 
 // Constructor
-Http::Http (std::string rawRequest, ServerConfig serverData, bool hasError){
-    _rawRequest = rawRequest;
-    _serverData = serverData;
-    _s_responseData._hasError = false;
+Http::Http (std::string &rawRequest, ServerConfig serverData){
 
-    parseRequest();
-    parseHeader();
+    _serverData = serverData;
+    _rawRequestPtr = &rawRequest;
+
+    requestBilder(rawRequest);
     responseBuilder();
 }
 
+void Http::requestBilder(std::string &rawRequest) {
+    parseRequest(rawRequest);
+    parseHeader();
+}
+
 // Parse HTTP request
-void Http::parseRequest() {
-    
+void Http::parseRequest(std::string &rawRequest) {
+    size_t headerEnd = rawRequest.find("\r\n\r\n");
+    if (headerEnd != std::string::npos) {
+        _s_requestData._rawHeader = rawRequest.substr(0, headerEnd);
+        // Dla body - nie kopiuj, tylko zapisz pozycję_s_requestData.
+        _rawRequestPtr = &rawRequest;
+        _bodyStart = headerEnd + 4;
+        _bodyLen = rawRequest.length() - (headerEnd + 4);
+    } else {
+        _s_requestData._rawHeader = rawRequest;
+        _rawRequestPtr = NULL;
+        _bodyStart = 0;
+        _bodyLen = 0;
+    }
 }
 
 // Parse HTTP headers
 void Http::parseHeader() {
-    // TODO: Implement
+    std::istringstream stream(_s_requestData._rawHeader);
+    std::string line;
+
+    // Parse request line
+    if (std::getline(stream, line)) {
+        std::istringstream lineStream(line);
+        std::string method, path, version;     std::string _rawBody;
+        
+        lineStream >> method >> path >> version;
+    
+        // Usuń \r na końcu version jeśli istnieje
+        if (!version.empty() && version[version.length() - 1] == '\r') {
+            version.erase(version.length() - 1);
+        }
+        
+        _s_requestData._method = method;
+        _s_requestData._path = path;
+        _s_requestData._httpVersion = version;
+    }
+
+    // Parse headers
+    while (std::getline(stream, line)) {
+        if (line == "\r" || line.empty()) {
+            break; // End of headers
+        }
+        if (!line.empty() && line[line.length() - 1] == '\r') {
+            line = line.substr(0, line.length() - 1); // Remove trailing \r
+        }
+        size_t delimiterPos = line.find(": ");
+        if (delimiterPos != std::string::npos) {
+            std::string key = line.substr(0, delimiterPos);
+            std::string value = line.substr(delimiterPos + 2);
+            _s_requestData._headers[key] = value;
+        }
+    }
+}
+
+void Http::parseConfigFile() {
+    
+}
+
+
+bool Http::isMethodAllowed() {
+    //TODO: Implement
+}
+
+bool Http::isBodySizeAllowed() {
+    //TODO: Implement
 }
 
 // Build CGI response
