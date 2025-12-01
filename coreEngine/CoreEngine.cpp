@@ -52,9 +52,6 @@ void CoreEngine::setSocket(size_t i)
    }
 }
 
-   //  std::string CoreEngine::getBuffer() { return std::string(buffer); }
-
-
 void CoreEngine::coreEngine()
 {
    // this function will be adjusted to data provided after parsing config file
@@ -80,7 +77,7 @@ void CoreEngine::coreEngine()
          setSocket(j);
          // creating a pararel vector to pollFD just to distiquish listening from client socket
          isClientFD.push_back(false);
-         serverFDtoIndex[socketFD[j]] = i; // mapowanie server FD -> config index
+         // serverFDtoIndex[socketFD[j]] = i; // mapowanie server FD -> config index
          lSockNum++;
          // realloc is nessesary due to dynamics changes to pollfd array, it holds all sockets events data 
          pollFDs = (pollfd *)realloc(pollFDs, (lSockNum + 1) * sizeof(pollfd));
@@ -117,18 +114,18 @@ void CoreEngine::coreEngine()
             if (pollFDs[i].revents & POLLHUP) // consider it coz might be unnesesary.
             {
                std::cout << "client on FD: " << pollFDs[i].fd << " has disconnected" << std::endl;
-               closeClientConnection(i);
+               close(pollFDs[i].fd);
                i--; // adjust loop counter
             }
             if (pollFDs[i].revents & POLLERR)
             {
                std::cout << "poll() failed: revent return POLLERR on FD: " << pollFDs[i].fd << std::endl;
                // Send HTTP 500 error before closing
-               HttpError errorHandler;
-               std::string errorResponse = errorHandler.generateErrorResponse(500);
-               send(pollFDs[i].fd, errorResponse.c_str(), errorResponse.size(), 0);
+               // HttpError errorHandler;
+               // std::string errorResponse = errorHandler.generateErrorResponse(500);
+               // send(pollFDs[i].fd, errorResponse.c_str(), errorResponse.size(), 0);
                
-               closeClientConnection(i);
+               close(pollFDs[i].fd);
                i--; // adjust loop counter
             }
          }

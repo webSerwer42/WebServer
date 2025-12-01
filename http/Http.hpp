@@ -6,46 +6,41 @@
 #include <vector>
 #include <sstream>
 #include <stdexcept>
-#include "../configReader/config.hpp"
 
 class Http {
+public:
+    struct HttpRequest {
+        std::string method;
+        std::string path;
+        std::string httpVersion;
+        std::map<std::string, std::string> headers;
+        std::string body;
+    };
 
-    private:
-        // server data
-        ServerConfig &serverData;
+    // Parses a raw HTTP request string and returns an HttpRequest object
+    static HttpRequest parse(const std::string& rawRequest);
 
-        // Request data
-        std::string requestMethod;
-        std::string requestPath;
-        std::string requestHttpVersion;
-        std::string requestBody;
-        std::map<std::string, std::string> requestHeaders;
-        
-        // Response data
-        std::map<std::string, std::string> responseHeaders;
-        std::string responseStatusCode;
-        std::string responseBody;
+    // Constructor for creating HTTP responses
+    Http(std::string& rawRequest);
 
-        // Parses a raw HTTP request string and returns an HttpRequest object
-        void parseRequest(const std::string &rawRequest);
-        
-        // Helper functions for parsing
-        void parseRequestLine(const std::string &line);
-        void parseHeaderLine(const std::string &line);
+    // Generates the HTTP response string
+    std::string response();
 
-        // Response functions
-        void cgiResponse();
-        void getResponse();
-        void postResponse();
-        void deleteResponse();
+private:
+    // Response data
+    HttpRequest request;
+    std::string httpVersion;
+    std::string statusCode;
+    std::vector<std::string> headers;
+    std::string body;
 
-    public:
-
-        // Constructor for creating HTTP responses
-        Http(std::string& rawRequest, ServerConfig &serverData);
-
-        // Generates the HTTP response string
-        std::string responseBuilder();
+    // Helper functions for parsing
+    static void parseRequestLine(const std::string& line, HttpRequest& request);
+    static void parseHeaderLine(const std::string& line, HttpRequest& request);
+    void getResponse();
+    void postResponse();
+    void putResponse();
+    void deleteResponse();
 };
 
 #endif
