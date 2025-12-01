@@ -19,7 +19,6 @@
 #include <vector>
 #include <sstream>
 #include <vector>
-#include <map> // for server to client mapping
 
 #include "../configReader/config.hpp"
 
@@ -31,6 +30,7 @@ private:
             sockaddr_storage clientSockaddr;
             ServerConfig serverCfg;
             std::string sendBuffer;
+            std::string requestBuffer;
             char inputBuffer[1024];
             size_t sendOffset;
             bool hasError;
