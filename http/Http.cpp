@@ -1,17 +1,23 @@
 #include "Http.hpp"
 
 // Constructor
-Http::Http(std::string& rawRequest, ServerConfig &serverData) {
-    // TODO: Implement
+Http::Http (std::string rawRequest, ServerConfig serverData, bool hasError){
+    _rawRequest = rawRequest;
+    _serverData = serverData;
+    _s_responseData._hasError = false;
+
+    parseRequest();
+    parseHeader();
+    responseBuilder();
 }
 
 // Parse HTTP request
-void Http::parseRequest(const std::string &rawRequest) {
-    // TODO: Implement
+void Http::parseRequest() {
+    
 }
 
 // Parse HTTP headers
-void Http::parseHeader(const std::string &rawHeader) {
+void Http::parseHeader() {
     // TODO: Implement
 }
 
@@ -36,10 +42,16 @@ void Http::deleteResponseBuilder() {
 }
 
 // Generate HTTP response string
-std::string Http::responseBuilder() {
+void Http::responseBuilder() {
     // TODO: Implement
-    return "";
 }
+
+
+bool Http::getIsError() const { return _s_responseData._hasError; }
+
+int Http::getStatusCode() const { return _s_responseData._responseStatusCode; }
+
+std::string Http::getResponse() const { return _s_responseData._response; }
 
 // void Http::parseRequestLine(const std::string& line, requestData& request) {
 //     std::istringstream stream(line);

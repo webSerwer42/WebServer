@@ -9,51 +9,56 @@
 #include "../configReader/config.hpp"
 
 class Http {
-
+    
     private:
-        // Reference to server configuration
-        ServerConfig &serverData;
-        std::string rawRequestHeader;
-        std::string rawRequestBody;
-
-        // Request data
-        struct requestData {
-            long long contentLength;
-            std::string method;
-            std::string path;
-            std::string httpVersion;
-            std::map<std::string, std::string> headers;
-            std::string body;
-        } requestData;
+    
+    
+    std::string _rawRequest;
+    ServerConfig _serverData;
+    
+    struct requestData {
+        long long _contentLength;
+        std::vector<std::string> _allowedMethods;
+        std::string _rawHeader;
+        std::string _rawBody;
+        std::string _path;
+        std::string _httpVersion;
+        std::map<std::string, std::string> _headers;
+        std::string _body;
+    } _s_requestData;
         
-        // Response data
-        struct responseData {
-            std::string responseHttpVersion;
-            std::map<std::string, std::string> responseHeaders;
-            long long clientMaxBodySize;
-            std::string responseHeader;
-            std::string responseStatusCode;
-            std::string responseBody;
-            std::string response;
-        } responseData;
+    struct responseData {
+        bool _hasError;
+        std::string _responseHttpVersion;
+        std::map<std::string, std::string> _responseHeaders;
+        long long _clientMaxBodySize;
+        std::string _responseHeader;
+        int _responseStatusCode;
+        std::string _responseBody;
+        std::string _response;
+    } _s_responseData;
 
         // Parses a raw HTTP request.
-        void parseRequest(const std::string &rawRequest);
-        void parseHeader(const std::string &rawHeader);
+        void parseRequest();
+        void parseHeader();
 
         // Response functions
+        void responseBuilder();
+
         void cgiResponseBuilder();
         void getResponseBuilder();
         void postResponseBuilder();
         void deleteResponseBuilder();
-
+        
     public:
 
         // Constructor for creating HTTP responses
-        Http(std::string& rawRequest, ServerConfig &serverData);
+        Http (std::string rawRequest, ServerConfig serverData, bool hasError);
 
         // Generates the HTTP response string
-        std::string responseBuilder();
+        bool getIsError() const;
+        int getStatusCode() const;
+        std::string getResponse() const;
 };
 
 #endif
