@@ -1,5 +1,5 @@
 #include "Http.hpp"
-#include "./errors/error.hpp"
+#include "../errors/error.hpp"
 
 // Constructor
 Http::Http (std::string &rawRequest, ServerConfig serverData){
@@ -79,6 +79,7 @@ void Http::parseConfigFile() {
 
 bool Http::isBodySizeAllowed() {
     //TODO: Implement
+    return true;
 }
 
 // Build CGI response
