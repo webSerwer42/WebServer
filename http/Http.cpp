@@ -28,10 +28,15 @@ void Http::parseRequest(std::string &rawRequest) {
         _bodyLen = rawRequest.length() - (headerEnd + 4);
     } else {
         _s_requestData._rawHeader = rawRequest;
+
+        // Debug output
+        std::cout << "=== NO \\r\\n\\r\\n FOUND, RAW HEADER ===\n" << _s_requestData._rawHeader << "\n=== END ===" << std::endl;
+
         _rawRequestPtr = NULL;
         _bodyStart = 0;
         _bodyLen = 0;
     }
+
 }
 
 // Parse HTTP headers
@@ -117,7 +122,11 @@ void Http::testResponseBuilder() {
 //tempolary response for testing
     std::ostringstream html;
 
-    html << "<!DOCTYPE html>\n"
+    html << "HTTP/1.1 200 OK\r\n"
+         << "Content-Type: text/html; charset=UTF-8\r\n"
+         << "Connection: close\r\n"
+         << "\r\n"
+         << "<!DOCTYPE html>\n"
          << "<html>\n"
          << "<head>\n"
          << "<meta charset=\"UTF-8\">\n"
