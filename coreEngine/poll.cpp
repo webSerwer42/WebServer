@@ -71,6 +71,7 @@ void CoreEngine::recivNClose(size_t el)
       std::cerr << "recv() failed: " << strerror(errno) << std::endl;
       std::string errorResponse = errorHandler.generateErrorResponse(500);
       client.hasError = true;
+      pollFDs[el].events = POLLOUT;
       client.sendBuffer = errorResponse;
       return;
    }
@@ -87,6 +88,7 @@ void CoreEngine::recivNClose(size_t el)
          std::string errorResponse = errorHandler.generateErrorResponse(400,
             "The request is empty or does not contain valid HTTP headers.");
          client.hasError = true;
+         pollFDs[el].events = POLLOUT;
          client.sendBuffer = errorResponse;
          return;
       }
@@ -97,18 +99,23 @@ void CoreEngine::recivNClose(size_t el)
          std::string errorResponse = errorHandler.generateErrorResponse(413,
             "The request payload exceeds the maximum buffer size of 1024 bytes.");
          client.hasError = true;
+         pollFDs[el].events = POLLOUT;
          client.sendBuffer = errorResponse;
          return;
       }
-      // response to HTTP reqest
-      std::cout << "--->buffer: " << client.inputBuffer << std::endl; // print buffer
-      pollFDs[el].events = POLLOUT;
+      // collecting chunks of recived data
+      std::string temp(client.inputBuffer);
+      client.requestBuffer += temp;
+      size_t index = client.requestBuffer.find("\r\n\r\n");
+      if(index != std::string::npos)
+         pollFDs[el].events = POLLOUT;
    }
 }
 
 void CoreEngine::sendToClient(size_t el)
 {
    client &client = this->getClientByFD(pollFDs[el].fd);
+   std::cout << "--->this is request buffer: " << client.requestBuffer << std::endl;
    try
    {
       //Http response(client.sendBuffer);
@@ -137,12 +144,12 @@ void CoreEngine::sendToClient(size_t el)
          client.sendOffset += byteSend;
          return;
       }
-      std::string str = "Packet send sukcesfully!\n";
       if (client.hasError == true)
       {
          closeCLient(el);
          return;
       }
+      client.sendOffset = 0;
    }
    catch (const std::exception &e)
    {
