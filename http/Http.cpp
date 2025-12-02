@@ -130,6 +130,7 @@ void Http::testResponseBuilder() {
               it != _s_requestData._headers.end(); ++it)
          {
              html << "<p><strong>" << it->first << ":</strong> " << it->second << "</p>\n";
+             std::cout << "Header: " << it->first << " => " << it->second << std::endl;
          }
          html << "</body>\n"
               << "</html>";
