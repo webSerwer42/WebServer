@@ -1,4 +1,6 @@
 #include "CoreEngine.hpp"
+#include <sstream>
+#include <stdexcept>
 
 CoreEngine::client& CoreEngine::getClientByFD(int socketFD)
 {

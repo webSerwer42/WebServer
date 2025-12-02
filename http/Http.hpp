@@ -33,6 +33,7 @@ class Http {
         // Helper functions for parsing
         void parseRequestLine(const std::string &line);
         void parseHeaderLine(const std::string &line);
+        void parseQueryString();
 
         // Response functions
         void cgiResponse();

@@ -1,107 +1,186 @@
 #include "Http.hpp"
+#include "stringUtils.hpp"
+#include <iostream>
 
-void Http::parseRequestLine(const std::string& line, requestData& request) {
-    std::istringstream stream(line);
-    if (!(stream >> request.method >> request.path >> request.httpVersion)) {
-        throw std::invalid_argument("Invalid HTTP request line");
-    }
-}
+// ============ PARSING FUNCTIONS ============
 
-void Http::parseHeaderLine(const std::string& line, requestData& request) {
-    size_t delimiterPos = line.find(": ");
-    if (delimiterPos == std::string::npos) {
-        throw std::invalid_argument("Invalid HTTP header line");
-    }
-
-    std::string key = line.substr(0, delimiterPos);
-    std::string value = line.substr(delimiterPos + 2);
-    request.headers[key] = value;
-}
-
-Http::requestData Http::parse(const std::string& rawRequest) {
-    requestData request;
+void Http::parseRequest(const std::string &rawRequest) {
     if (rawRequest.empty()) {
-        throw std::invalid_argument("Empty HTTP request");
+        std::cerr << "Error: Empty HTTP request" << std::endl;
+        return;
     }
-    std::istringstream stream(rawRequest);
-    std::string line;
-
-    // Parse the request line
-    if (!std::getline(stream, line) || line.empty()) {
-        throw std::invalid_argument("Empty HTTP request");
+    
+    // Find the first non-whitespace character
+    size_t reqLineStart = rawRequest.find_first_not_of(" \t\r\n");
+    if (reqLineStart == std::string::npos) {
+        std::cerr << "Error: Request contains only whitespace" << std::endl;
+        return;
     }
-    parseRequestLine(line, request);
-
-    // Parse headers
-    while (std::getline(stream, line) && !line.empty()) {
-        if (line == "\r") {
-            break; // End of headers
+    
+    // Find the end of the request line
+    size_t firstLineEnd = rawRequest.find("\r\n", reqLineStart);
+    size_t firstLineEndLen = 2;
+    
+    if (firstLineEnd == std::string::npos) {
+        firstLineEnd = rawRequest.find("\n", reqLineStart);
+        if (firstLineEnd == std::string::npos) {
+            std::cerr << "Error: Could not find end of request line" << std::endl;
+            return;
         }
-        parseHeaderLine(line, request);
+        firstLineEndLen = 1;
     }
-
-    // Parse body (if any)
-    std::string body;
-    while (std::getline(stream, line)) {
-        body += line + "\n";
+    
+    // Extract and parse request line
+    std::string firstLineRaw = rawRequest.substr(reqLineStart, firstLineEnd - reqLineStart);
+    parseRequestLine(trim(firstLineRaw));
+    
+    if (requestMethod.empty()) {
+        std::cerr << "Error: Request line parsing failed" << std::endl;
+        return;
     }
-    request.body = body;
-
-    return request;
+    
+    // Parse headers
+    size_t headerStart = firstLineEnd + firstLineEndLen;
+    std::vector<std::string> headerLines;
+    size_t currentPos = headerStart;
+    
+    while (currentPos < rawRequest.length()) {
+        size_t nextLineEnd = rawRequest.find("\r\n", currentPos);
+        size_t nextLineEndLen = 2;
+        
+        if (nextLineEnd == std::string::npos) {
+            nextLineEnd = rawRequest.find("\n", currentPos);
+            if (nextLineEnd != std::string::npos) {
+                nextLineEndLen = 1;
+            } else {
+                break;
+            }
+        }
+        
+        std::string line = trim(rawRequest.substr(currentPos, nextLineEnd - currentPos));
+        
+        if (line.empty()) {
+            // Empty line marks end of headers
+            break;
+        }
+        
+        headerLines.push_back(line);
+        currentPos = nextLineEnd + nextLineEndLen;
+    }
+    
+    // Parse each header line
+    for (size_t i = 0; i < headerLines.size(); ++i) {
+        parseHeaderLine(headerLines[i]);
+    }
+    
+    // Parse query string from URI
+    parseQueryString();
 }
 
-Http::Http(std::string& rawRequest) {
-    this->request = parseRequest(rawRequest);
+void Http::parseRequestLine(const std::string &line) {
+    std::vector<std::string> parts = split(line, ' ');
+    
+    // Filter out empty strings
+    std::vector<std::string> validParts;
+    for (size_t i = 0; i < parts.size(); ++i) {
+        if (!parts[i].empty()) {
+            validParts.push_back(parts[i]);
+        }
+    }
+    
+    if (validParts.size() != 3) {
+        std::cerr << "Error: Invalid request line format. Expected 3 parts, got " 
+                  << validParts.size() << std::endl;
+        return;
+    }
+    
+    requestMethod = validParts[0];
+    requestPath = validParts[1];
+    requestHttpVersion = validParts[2];
+}
+
+void Http::parseHeaderLine(const std::string &line) {
+    size_t colonPos = line.find(':');
+    
+    if (colonPos != std::string::npos) {
+        std::string key = trim(line.substr(0, colonPos));
+        std::string value = trim(line.substr(colonPos + 1));
+        requestHeaders[toLower(key)] = value;
+    }
+}
+
+void Http::parseQueryString() {
+    size_t queryPos = requestPath.find('?');
+    
+    if (queryPos != std::string::npos) {
+        std::string queryString = requestPath.substr(queryPos + 1);
+        std::vector<std::string> params = split(queryString, '&');
+        
+        for (size_t i = 0; i < params.size(); ++i) {
+            const std::string& param = params[i];
+            size_t equalPos = param.find('=');
+            
+            if (equalPos != std::string::npos) {
+                std::string key = param.substr(0, equalPos);
+                std::string value = param.substr(equalPos + 1);
+                requestHeaders[key] = value;  // Store query params in headers map for now
+            }
+        }
+        
+        // Remove query string from path
+        requestPath = requestPath.substr(0, queryPos);
+    }
+}
+
+// ============ RESPONSE FUNCTIONS ============
+
+void Http::cgiResponse() {
+    // TODO: Implement CGI response
+    responseStatusCode = "200 OK";
+    responseBody = "<html><body><h1>CGI Response</h1></body></html>";
 }
 
 void Http::getResponse() {
-    this->requestHttpVersion = "HTTP/1.1";
-    this->responseStatusCode = "200 OK";
-    this->requestBody = "<html><body><h1>GET request received</h1></body></html>";
+    // TODO: Implement GET response
+    responseStatusCode = "200 OK";
+    responseBody = "<html><body><h1>GET Response</h1></body></html>";
 }
 
 void Http::postResponse() {
-    this->requestHttpVersion = "HTTP/1.1";
-    this->responseStatusCode = "200 OK";
-    this->requestBody = "<html><body><h1>POST request received</h1></body></html>";
-}
-void Http::putResponse() {
-    this->httpVersion = "HTTP/1.1";
-    this->statusCode = "200 OK";
-    this->body = "<html><body><h1>PUT request received</h1></body></html>";
+    // TODO: Implement POST response
+    responseStatusCode = "200 OK";
+    responseBody = "<html><body><h1>POST Response</h1></body></html>";
 }
 
+void Http::deleteResponse() {
+    // TODO: Implement DELETE response
+    responseStatusCode = "200 OK";
+    responseBody = "<html><body><h1>DELETE Response</h1></body></html>";
+}
 
-std::string Http::response() {
-    if (this->request.method == "GET") {
-        this->httpVersion = "HTTP/1.1";
-        this->statusCode = "200 OK";
-        this->body = "<html><body><h1>GET Request</h1></body></html>";
-    } else if (this->request.method == "POST") {
-        this->httpVersion = "HTTP/1.1";
-        this->statusCode = "200 OK";
-        this->body = "<html><body><h1>POST Request</h1></body></html>";
-    } else if (this->request.method == "PUT") {
-        this->httpVersion = "HTTP/1.1";
-        this->statusCode = "200 OK";
-        this->body = "<html><body><h1>PUT Request</h1></body></html>";
-    } else if (this->request.method == "DELETE") {
-        this->httpVersion = "HTTP/1.1";
-        this->statusCode = "200 OK";
-        this->body = "<html><body><h1>DELETE Request</h1></body></html>";
+// ============ PUBLIC METHODS ============
+
+std::string Http::responseBuilder() {
+    // Determine which response to generate based on method
+    if (requestMethod == "GET") {
+        getResponse();
+    } else if (requestMethod == "POST") {
+        postResponse();
+    } else if (requestMethod == "DELETE") {
+        deleteResponse();
     } else {
-        this->httpVersion = "HTTP/1.1";
-        this->statusCode = "405 Method Not Allowed";
-        this->body = "<html><body><h1>405 Method Not Allowed</h1></body></html>";
+        responseStatusCode = "405 Method Not Allowed";
+        responseBody = "<html><body><h1>405 Method Not Allowed</h1></body></html>";
     }
-
-    std::string headersCombined;
-    std::stringstream ss;
-    ss << body.length();
-    this->headers.push_back("Content-Length: " + ss.str());
-    this->headers.push_back("Connection: close");
-    this->headers.push_back("Content-Type: text/html");
-    for (std::vector<std::string>::const_iterator it = headers.begin(); it != headers.end(); ++it)
-        headersCombined += *it + "\r\n";
-    return httpVersion + " " + statusCode + "\r\n" + headersCombined + "\r\n" + body;
+    
+    // Build HTTP response
+    std::ostringstream response;
+    response << "HTTP/1.1 " << responseStatusCode << "\r\n";
+    response << "Content-Type: text/html\r\n";
+    response << "Content-Length: " << responseBody.length() << "\r\n";
+    response << "Connection: close\r\n";
+    response << "\r\n";
+    response << responseBody;
+    
+    return response.str();
 }

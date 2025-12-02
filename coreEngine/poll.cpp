@@ -31,30 +31,40 @@ void CoreEngine::closeClientConnection(size_t el)
 
 void CoreEngine::setConnection(size_t i)
 {
+   client newClient;
+   memset(&newClient.clientSockaddr, 0, sizeof(sockaddr_storage));
+   
    socklen_t addrLen = sizeof(sockaddr_storage);
-   int clientFD = accept(pollFDs[i].fd, (struct sockaddr *)&clientSockaddr, &addrLen);
-   if (clientFD == -1)
+   newClient.FD = accept(pollFDs[i].fd, (struct sockaddr *)&newClient.clientSockaddr, &addrLen);
+   
+   if (newClient.FD == -1)
    {
       std::cerr << "accept() failed: " << strerror(errno) << std::endl;
-      exit(1);
+      return; // nie crashuj serwera
    }
+   
    pollFDs = (pollfd *)realloc(pollFDs, (pollFDsNum + 1) * sizeof(pollfd));
-   pollFDs[pollFDsNum].fd = clientFD;
+   pollFDs[pollFDsNum].fd = newClient.FD;
    pollFDs[pollFDsNum].revents = 0;
+   pollFDs[pollFDsNum].events = POLLIN;
 
    isClientFD[pollFDsNum] = true;
    clientToServer[pollFDsNum] = serverFDtoIndex[pollFDs[i].fd]; // zapisz który serwer przyjął połączenie
-   pollFDs[pollFDsNum].events = POLLIN;
+   
+   clientVec.push_back(newClient);
    pollFDsNum++;
+   
    std::cout << "socket: " << pollFDs[i].fd << " ready to connect" << std::endl;
 }
 
 void CoreEngine::recivNClose(size_t el)
 {
    // recived date is send to buffer, for now its strign
-   byteRecived = recv(pollFDs[el].fd, buffer, 1024, 0);
-   buffer[byteRecived] = '\0';
-   if (byteRecived == -1)
+   client &clientRef = getClientByFD(pollFDs[el].fd);
+   
+   clientRef.byteRecived = recv(pollFDs[el].fd, clientRef.buffer, 1024, 0);
+   clientRef.buffer[clientRef.byteRecived] = '\0';
+   if (clientRef.byteRecived == -1)
    {
       std::cerr << "recv() failed: " << strerror(errno) << std::endl;
       // Wyślij 500 Internal Server Error
@@ -66,7 +76,7 @@ void CoreEngine::recivNClose(size_t el)
       return;
    }
    // this is closing socket logic, when send EOF by client EOF
-   else if (byteRecived == 0)
+   else if (clientRef.byteRecived == 0)
    {
       closeClientConnection(el);
    }
@@ -74,7 +84,7 @@ void CoreEngine::recivNClose(size_t el)
    {
 
       //czy request jest pusty (400)
-      std::string requestStr(client.buffer);
+      std::string requestStr(clientRef.buffer);
       if (requestStr.empty() || requestStr.find("HTTP") == std::string::npos)
       {
          std::cout << "Empty or invalid HTTP request detected!" << std::endl;
@@ -88,7 +98,7 @@ void CoreEngine::recivNClose(size_t el)
       }
       
       //czy buffer jest za mały (413)
-      if (client.byteRecived == (int)(sizeof(client.buffer) - 1))
+      if (clientRef.byteRecived == (int)(sizeof(clientRef.buffer) - 1))
       {
          std::cout << "Request too large! Buffer full." << std::endl;
          HttpError errorHandler;
@@ -101,7 +111,7 @@ void CoreEngine::recivNClose(size_t el)
       }
 
       // response to HTTP reqest
-      std::cout << "--->buffer: " << buffer << std::endl; // print buffer
+      std::cout << "--->buffer: " << clientRef.buffer << std::endl; // print buffer
       pollFDs[el].events = POLLOUT;
    }
 }
@@ -111,8 +121,8 @@ void CoreEngine::sendToClient(size_t el)
 
 try
 {
-   client &client = this->getClientByFD(pollFDs[el].fd);
-   std::string requestStr(client.buffer);
+   client &clientRef = this->getClientByFD(pollFDs[el].fd);
+   std::string requestStr(clientRef.buffer);
    size_t serverIndex = clientToServer[el]; // pobierz indeks serwera dla tego klienta
    
    Http response(requestStr, serversCfg[serverIndex]); // użyj odpowiedniej konfiguracji serwera

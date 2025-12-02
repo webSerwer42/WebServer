@@ -72,3 +72,54 @@ void getWords(const std::string& inputToSplit, std::vector<std::string>& results
         results.push_back(word);
     }
 }
+// ============ ADDITIONAL HTTP UTILITY FUNCTIONS ============
+
+std::string trim(const std::string& str) {
+    if (str.empty())
+        return str;
+    
+    size_t start = 0;
+    size_t end = str.length();
+    
+    while (start < end && std::isspace(static_cast<unsigned char>(str[start]))) {
+        ++start;
+    }
+    
+    while (end > start && std::isspace(static_cast<unsigned char>(str[end - 1]))) {
+        --end;
+    }
+    
+    return str.substr(start, end - start);
+}
+
+std::vector<std::string> split(const std::string& str, char delimiter) {
+    std::vector<std::string> tokens;
+    std::string token;
+    std::istringstream tokenStream(str);
+    
+    while (std::getline(tokenStream, token, delimiter)) {
+        tokens.push_back(token);
+    }
+    
+    return tokens;
+}
+
+std::string toLower(const std::string& str) {
+    std::string lowerStr = str;
+    std::transform(lowerStr.begin(), lowerStr.end(), lowerStr.begin(), ::tolower);
+    return lowerStr;
+}
+
+size_t stringToSize(const std::string& str) {
+    if (str.empty())
+        return 0;
+    
+    std::istringstream iss(str);
+    size_t result;
+    iss >> result;
+    
+    if (iss.fail())
+        return 0;
+    
+    return result;
+}

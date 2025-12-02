@@ -12,6 +12,19 @@ CoreEngine::CoreEngine(const std::vector<ServerConfig> &serversCfg) : serversCfg
    hints.ai_flags = AI_PASSIVE;     // for server means NULL will accept connection from any adress
 }
 
+CoreEngine::~CoreEngine()
+{
+   if (pollFDs)
+      free(pollFDs);
+   
+   // Close all sockets
+   for (size_t i = 0; i < socketFD.size(); ++i)
+   {
+      if (socketFD[i] > 0)
+         close(socketFD[i]);
+   }
+}
+
 void CoreEngine::setSocket(size_t i)
 {
    // this is creation of listening sockets, pushing to vector
