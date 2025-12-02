@@ -31,6 +31,7 @@ void Http::parseRequest(std::string &rawRequest) {
 
         // Debug output
         std::cout << "=== NO \\r\\n\\r\\n FOUND, RAW HEADER ===\n" << _s_requestData._rawHeader << "\n=== END ===" << std::endl;
+        std::cout << "=== RAW REQUEST ===\n" << rawRequest << "\n=== END RAW REQUEST ===" << std::endl;
 
         _rawRequestPtr = NULL;
         _bodyStart = 0;

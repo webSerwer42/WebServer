@@ -119,8 +119,8 @@ void CoreEngine::sendToClient(size_t el)
    try
    {
       //Http response(client.sendBuffer);
-      
-      Http object(client.sendBuffer, client.serverCfg);
+
+      Http object(client.requestBuffer, client.serverCfg);
       if (object.getIsError())
          client.hasError = true;
       // Obsluga erroruw w Http class
