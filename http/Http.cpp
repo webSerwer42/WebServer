@@ -30,8 +30,12 @@ void Http::parseRequest(std::string &rawRequest) {
         _s_requestData._rawHeader = rawRequest;
 
         // Debug output
-        std::cout << "=== NO \\r\\n\\r\\n FOUND, RAW HEADER ===\n" << _s_requestData._rawHeader << "\n=== END ===" << std::endl;
-        std::cout << "=== RAW REQUEST ===\n" << rawRequest << "\n=== END RAW REQUEST ===" << std::endl;
+        std::cout << "=== NO \\r\\n\\r\\n FOUND, RAW HEADER ===\n"
+                    << _s_requestData._rawHeader
+                    << "\n=== END ===" << std::endl;
+        std::cout << "=== RAW REQUEST ===\n" 
+                    << rawRequest
+                    << "\n=== END RAW REQUEST ===" << std::endl;
 
         _rawRequestPtr = NULL;
         _bodyStart = 0;
@@ -121,6 +125,13 @@ bool Http::isMethodAllowed(const std::string& method) {
 
 void Http::testResponseBuilder() {
 //tempolary response for testing
+    if (_s_requestData._path == "/favicon.ico") {
+        _s_responseData._response = "HTTP/1.1 204 No Content\r\n"
+                                   "Connection: close\r\n"
+                                   "\r\n";
+        return;
+    }
+
     std::ostringstream html;
 
     html << "HTTP/1.1 200 OK\r\n"
@@ -135,7 +146,11 @@ void Http::testResponseBuilder() {
          << "</head>\n"
          << "<body>\n"
          << "<h1>" << 200 << " " << "OK" << "</h1>\n"
-         << "<p>" << "Request was successful." << "</p>\n";
+         << "<p>" << "Request was successful." << "</p>\n"
+         << "<p>Method: " << _s_requestData._method << "</p>\n"
+         << "<p>Path: " << _s_requestData._path << "</p>\n"
+         << "<p>Version: " << _s_requestData._httpVersion << "</p>\n"
+         << "<p>Headers:</p>\n";
          for (std::map<std::string, std::string>::const_iterator it = _s_requestData._headers.begin(); 
               it != _s_requestData._headers.end(); ++it)
          {
@@ -149,6 +164,14 @@ void Http::testResponseBuilder() {
 }
 
 void Http::responseBuilder() {
+
+    if (_s_requestData._path == "/favicon.ico") {
+        _s_responseData._response = "HTTP/1.1 204 No Content\r\n"
+                                   "Connection: close\r\n"
+                                   "\r\n";
+        return;
+    }
+
     if (_s_requestData._method == "GET" && isMethodAllowed("GET")) {
         getResponseBuilder();
     } else if (_s_requestData._method == "POST" && isMethodAllowed("POST")) {
