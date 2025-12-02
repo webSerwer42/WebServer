@@ -4,9 +4,9 @@
 // Constructor
 Http::Http (std::string &rawRequest, ServerConfig serverData){
 
-    _serverData = serverData;
     _rawRequestPtr = &rawRequest;
 
+    parseServerConfig(serverData);
     requestBilder(rawRequest);
     //responseBuilder();
     testResponseBuilder();
@@ -15,6 +15,10 @@ Http::Http (std::string &rawRequest, ServerConfig serverData){
 void Http::requestBilder(std::string &rawRequest) {
     parseRequest(rawRequest);
     parseHeader();
+}
+
+void Http::parseServerConfig(ServerConfig serverData) {
+    //TODO: Implement
 }
 
 // Parse HTTP request
@@ -81,10 +85,6 @@ void Http::parseHeader() {
             _s_requestData._headers[key] = value;
         }
     }
-}
-
-void Http::parseConfigFile() {
-    
 }
 
 bool Http::isBodySizeAllowed() {

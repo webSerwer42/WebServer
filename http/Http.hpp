@@ -49,7 +49,7 @@ class Http {
         void parseHeader();
         bool isMethodAllowed(const std::string& method);
         bool isBodySizeAllowed();
-        void parseConfigFile();
+        void parseServerConfig(ServerConfig serverData);
 
         // Response functions
         void responseBuilder();
