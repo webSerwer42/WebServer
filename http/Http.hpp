@@ -11,48 +11,49 @@
 class Http {
     
     private:
-    ServerConfig _serverData;
-    const std::string* _rawRequestPtr;  // wskaźnik do oryginalnego requesta
-    size_t _bodyStart;
-    size_t _bodyLen;
+        ServerConfig _serverData;
+        const std::string* _rawRequestPtr;  // wskaźnik do oryginalnego requesta
+        size_t _bodyStart;
+        size_t _bodyLen;
 
-    struct requestData {
-        long long _contentLength;
-        std::string locationRoot;
-        std::string locationIndex;
-        std::string locationRedirect;
-        std::string locationCgiPath;
-        std::string locationCgiExt;
-        std::string locationUploadDir;
-        bool Autoindex;
-        std::vector<std::string> _allowedMethods;
-        std::string _rawHeader;
-        std::string _path;
-        std::string _httpVersion;
-        std::string _method;
-        std::map<std::string, std::string> _headers;
-    } _s_requestData;
-        
-    struct responseData {
-        bool _hasError;
-        std::string _responseHttpVersion;
-        std::map<std::string, std::string> _responseHeaders;
-        long long _clientMaxBodySize;
-        std::string _responseHeader;
-        int _responseStatusCode;
-        std::string _responseBody;
-        std::string _response;
-    } _s_responseData;
+        struct requestData {
+            long long _contentLength;
+            std::string locationRoot;
+            std::string locationIndex;
+            std::string locationRedirect;
+            std::string locationCgiPath;
+            std::string locationCgiExt;
+            std::string locationUploadDir;
+            bool Autoindex;
+            std::vector<std::string> _allowedMethods;
+            std::string _rawHeader;
+            std::string _path;
+            std::string _httpVersion;
+            std::string _method;
+            std::map<std::string, std::string> _headers;
+        } _s_requestData;
+            
+        struct responseData {
+            bool _hasError;
+            std::string _responseHttpVersion;
+            std::map<std::string, std::string> _responseHeaders;
+            long long _clientMaxBodySize;
+            std::string _responseHeader;
+            int _responseStatusCode;
+            std::string _responseBody;
+            std::string _response;
+        } _s_responseData;
 
         // Parses a raw HTTP request.
         void parseRequest(std::string &rawRequest);
         void parseHeader();
-        bool isMethodAllowed();
+        bool isMethodAllowed(const std::string& method);
         bool isBodySizeAllowed();
         void parseConfigFile();
 
         // Response functions
         void responseBuilder();
+        void testResponseBuilder();
         void requestBilder(std::string &rawRequest);
 
         void cgiResponseBuilder();

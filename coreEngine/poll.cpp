@@ -112,12 +112,15 @@ void CoreEngine::sendToClient(size_t el)
    try
    {
       //Http response(client.sendBuffer);
-      // ned to
-      Http response(client.sendBuffer, client.serverCfg , client.hasError);
-      std::string responseStr = response.responseBuilder();
-      std::cout << "---> What is response: " << responseStr << std::endl;
-      int byteSend = send(pollFDs[el].fd, responseStr.c_str() + client.sendOffset, 
-         responseStr.size() - client.sendOffset, 0); // check if string functions are ok
+      
+      Http object(client.sendBuffer, client.serverCfg);
+      if (object.getIsError())
+         client.hasError = true;
+      // Obsluga erroruw w Http class
+      // std::string responseStr to object.responseBuilder();
+      std::cout << "---> What is response: " << object.getResponse() << std::endl;
+      int byteSend = send(pollFDs[el].fd, object.getResponse().c_str() + client.sendOffset, 
+         object.getResponse().size() - client.sendOffset, 0); // check if string functions are ok
       if (byteSend == -1)
       {
          if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)
@@ -129,7 +132,7 @@ void CoreEngine::sendToClient(size_t el)
          closeCLient(el);
          return;
       }
-      if((0 < byteSend) && (byteSend < (int)responseStr.size()))
+      if((0 < byteSend) && (byteSend < (int)object.getResponse().size()))
       {
          client.sendOffset += byteSend;
          return;
