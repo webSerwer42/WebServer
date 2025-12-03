@@ -5,20 +5,21 @@
 Http::Http (std::string &rawRequest, ServerConfig serverData){
 
     _rawRequestPtr = &rawRequest;
+    _serverData = serverData;
 
-    parseServerConfig(serverData);
+    // Get location-specific configuration
+    _myConfig = getMyConfig();
+    // Initialize HttpError with server or location-specific error pages
+    _httpError = HttpError(_myConfig.error_pages);
+
     requestBilder(rawRequest);
-    //responseBuilder();
-    testResponseBuilder();
+    responseBuilder();
+    //testResponseBuilder();
 }
 
 void Http::requestBilder(std::string &rawRequest) {
     parseRequest(rawRequest);
     parseHeader();
-}
-
-void Http::parseServerConfig(ServerConfig serverData) {
-    //TODO: Implement
 }
 
 // Parse HTTP request
@@ -110,17 +111,21 @@ void Http::postResponseBuilder() {
 // Build DELETE response
 void Http::deleteResponseBuilder() {
     // TODO: Implement
+    
 }
 
-bool Http::isMethodAllowed(const std::string& method) {
-    // Iteruj przez wektor i szukaj metody
-    for (std::vector<std::string>::const_iterator it = _s_requestData._allowedMethods.begin(); 
-         it != _s_requestData._allowedMethods.end(); ++it)
-        {
-        if (*it == method)
+bool Http::isCGI() {
+// TODO: Implement
+    return false;
+}
+
+bool Http::isMethodAllowed() {
+    for (size_t i = 0; i < _myConfig.allow_methods.size(); ++i) {
+        if (_s_requestData._method == _myConfig.allow_methods[i]) {
             return true;
+        }
     }
-    return false; // Metoda nie jest dozwolona
+    return false;
 }
 
 void Http::testResponseBuilder() {
@@ -157,6 +162,30 @@ void Http::testResponseBuilder() {
              html << "<p><strong>" << it->first << ":</strong> " << it->second << "</p>\n";
              std::cout << "Header: " << it->first << " => " << it->second << std::endl;
          }
+         // Wyświetl zawartość _myConfig
+         html << "<h2>Location Config</h2>\n";
+         html << "<p><strong>root:</strong> " << _myConfig.root << "</p>\n";
+         html << "<p><strong>upload_dir:</strong> " << _myConfig.upload_dir << "</p>\n";
+         html << "<p><strong>cgi_path:</strong> " << _myConfig.cgi_path << "</p>\n";
+         html << "<p><strong>client_max_body_size:</strong> " << _myConfig.client_max_body_size << "</p>\n";
+         html << "<p><strong>autoindex:</strong> " << (_myConfig.autoindex ? "true" : "false") << "</p>\n";
+
+         html << "<p><strong>allow_methods:</strong></p>\n";
+         for (size_t i = 0; i < _myConfig.allow_methods.size(); ++i)
+             html << "<p> - " << _myConfig.allow_methods[i] << "</p>\n";
+
+         html << "<p><strong>index:</strong></p>\n";
+         for (size_t i = 0; i < _myConfig.index.size(); ++i)
+             html << "<p> - " << _myConfig.index[i] << "</p>\n";
+
+         html << "<p><strong>cgi_ext:</strong></p>\n";
+         for (size_t i = 0; i < _myConfig.cgi_ext.size(); ++i)
+             html << "<p> - " << _myConfig.cgi_ext[i] << "</p>\n";
+
+         html << "<p><strong>error_pages:</strong></p>\n";
+         for (std::map<int, std::string>::const_iterator it = _myConfig.error_pages.begin();
+              it != _myConfig.error_pages.end(); ++it)
+             html << "<p> - " << it->first << " => " << it->second << "</p>\n";
          html << "</body>\n"
               << "</html>";
 
@@ -172,22 +201,69 @@ void Http::responseBuilder() {
         return;
     }
 
-    if (_s_requestData._method == "GET" && isMethodAllowed("GET")) {
-        getResponseBuilder();
-    } else if (_s_requestData._method == "POST" && isMethodAllowed("POST")) {
-        postResponseBuilder();
-    } else if (_s_requestData._method == "DELETE" && isMethodAllowed("DELETE")) {
-        deleteResponseBuilder();
-    } else {
-        // Method not allowed
+    if (!isBodySizeAllowed()) {
+        _s_responseData._hasError = true;
+        _s_responseData._responseStatusCode = 413;
+        _s_responseData._response = _httpError.generateErrorResponse(413);
+        return;
+    }
+
+    if (isCGI()) {
+        cgiResponseBuilder();
+        return;
+    }
+   if (!isMethodAllowed()) {
         _s_responseData._hasError = true;
         _s_responseData._responseStatusCode = 405;
-        _s_responseData._responseBody = "405 Method Not Allowed";
-        HttpError error;
-        _s_responseData._response = error.generateErrorResponse(405);
+        _s_responseData._response = _httpError.generateErrorResponse(405);
+        return;
+    }
+    
+    // Obsłuż według metody
+    if (_s_requestData._method == "GET") {
+        getResponseBuilder();
+    } else if (_s_requestData._method == "POST") {
+        postResponseBuilder();
+    } else if (_s_requestData._method == "DELETE") {
+        deleteResponseBuilder();
+    } else {
+        // Nieobsługiwana metoda
+        _s_responseData._hasError = true;
+        _s_responseData._responseStatusCode = 501;
+        _s_responseData._response = _httpError.generateErrorResponse(501);
     }
 }
 
+LocationConfig Http::getMyConfig() {
+    // Znajdź odpowiednią lokację dla ścieżki
+    LocationConfig myConfig;
+    bool locationFound = false;
+    
+    for (std::map<std::string, LocationConfig>::iterator it = _serverData.locations.begin();
+         it != _serverData.locations.end(); ++it) {
+        //czy ścieżka zaczyna się od route
+        if (_s_requestData._path.find(it->first) == 0) {
+            //merge
+            myConfig = Config::getMergedLocationConfig(_serverData, it->second);
+            locationFound = true;
+            break;
+        }
+    }
+    
+    // Jeśli nie znaleziono lokacji, skopiuj ustawienia z serwera
+    if (!locationFound) {
+        myConfig.root = _serverData.root;
+        myConfig.allow_methods = _serverData.allow_methods;
+        myConfig.index = _serverData.index;
+        myConfig.client_max_body_size = _serverData.client_max_body_size;
+        myConfig.autoindex = _serverData.autoindex;
+        myConfig.upload_dir = _serverData.upload_dir;
+        myConfig.cgi_path = _serverData.cgi_path;
+        myConfig.cgi_ext = _serverData.cgi_ext;
+        myConfig.error_pages = _serverData.error_pages;
+    }
+    return myConfig;
+}
 
 bool Http::getIsError() const { return _s_responseData._hasError; }
 

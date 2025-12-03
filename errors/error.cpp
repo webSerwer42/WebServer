@@ -6,7 +6,7 @@
 /*   By: agorski <agorski@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/26 14:37:10 by agorski           #+#    #+#             */
-/*   Updated: 2025/11/27 17:29:00 by agorski          ###   ########.fr       */
+/*   Updated: 2025/12/03 13:02:36 by agorski          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -17,6 +17,15 @@
 
 HttpError::HttpError() {
     initializeErrorMaps();
+}
+
+HttpError::HttpError(const std::map<int, std::string>& errorPages)
+{
+    initializeErrorMaps();
+    for (std::map<int, std::string>::const_iterator it = errorPages.begin();
+         it != errorPages.end(); ++it) {
+        setDefaultErrorPage(it->first, it->second);
+    }
 }
 
 void HttpError::initializeErrorMaps() {

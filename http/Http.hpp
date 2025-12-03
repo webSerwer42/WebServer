@@ -7,6 +7,7 @@
 #include <sstream>
 #include <stdexcept>
 #include "../configReader/config.hpp"
+#include "../errors/error.hpp"
 
 class Http {
     
@@ -15,6 +16,8 @@ class Http {
         const std::string* _rawRequestPtr;  // wskaźnik do oryginalnego requesta
         size_t _bodyStart;
         size_t _bodyLen;
+        HttpError _httpError;
+        LocationConfig _myConfig;
 
         struct requestData {
             long long _contentLength;
@@ -47,14 +50,15 @@ class Http {
         // Parses a raw HTTP request.
         void parseRequest(std::string &rawRequest);
         void parseHeader();
-        bool isMethodAllowed(const std::string& method);
+        bool isMethodAllowed();
         bool isBodySizeAllowed();
-        void parseServerConfig(ServerConfig serverData);
 
         // Response functions
         void responseBuilder();
         void testResponseBuilder();
         void requestBilder(std::string &rawRequest);
+        LocationConfig getMyConfig();
+        bool isCGI();
 
         void cgiResponseBuilder();
         void getResponseBuilder();

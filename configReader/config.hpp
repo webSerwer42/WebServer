@@ -7,10 +7,11 @@
 #include <map>
 
 struct LocationConfig {
+    std::string client_max_body_size;
+    std::map<int, std::string> error_pages;
     std::vector<std::string> allow_methods;
     bool autoindex;
     std::string index;
-    std::string redirect;
     std::string upload_dir;
     std::string cgi_path;
     std::string cgi_ext;
@@ -21,18 +22,29 @@ struct ServerConfig {
     std::string listen_port;
     std::string server_name;
     std::string host;
+
+    std::string client_max_body_size;
     std::map<int, std::string> error_pages;
+    std::vector<std::string> allow_methods;
+    bool autoindex;
+    std::string index;
+    std::string upload_dir;
+    std::string cgi_path;
+    std::string cgi_ext;
+    std::string root;
     std::map<std::string, LocationConfig> locations;
 };
 
 class Config {
 private:
     std::vector<ServerConfig> servers;
-
     void parseLines(std::ifstream& file);
-
-public:
+    
+    public:
     Config(const std::string& filename);
     const std::vector<ServerConfig>& getServers() const;
     void printConfigs() const;
+    static LocationConfig getMergedLocationConfig(
+        const ServerConfig& server,
+        const LocationConfig& location);
 };

@@ -6,7 +6,7 @@
 /*   By: agorski <agorski@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/11/26 14:34:32 by agorski           #+#    #+#             */
-/*   Updated: 2025/11/27 15:32:12 by agorski          ###   ########.fr       */
+/*   Updated: 2025/12/03 12:26:01 by agorski          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -34,6 +34,7 @@ class HttpError {
 
     public:
         HttpError();
+        HttpError(const std::map<int, std::string>& errorPages);
 
         // Wygeneruj kompletną odpowiedź HTTP z HTML
         std::string generateErrorResponse(int code);
