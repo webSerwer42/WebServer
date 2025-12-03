@@ -6,8 +6,8 @@
 # Propozycja ustandaryzowania dla zgodności z przeglądarką Chrome
 
 TO DO LIST:  
-- [ ] Error handling in main loop (exceptions)
-- [ ] Add max body size validation (socket layer)
+- [x] Error handling in main loop (exceptions)
+- [x] Add max body size validation (socket layer)
 - [ ] CGI
 - [ ] HTTP response builder
 - [ ] HTTP pages + .py script

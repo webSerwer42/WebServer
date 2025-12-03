@@ -6,46 +6,75 @@
 #include <vector>
 #include <sstream>
 #include <stdexcept>
+#include <cstdlib>
 #include "../configReader/config.hpp"
+#include "../errors/error.hpp"
 
 class Http {
-
+    
     private:
-        // server data
-        ServerConfig &serverData;
+        ServerConfig _serverData;
+        const std::string* _rawRequestPtr;  // wskaźnik do oryginalnego requesta
+        size_t _bodyStart;
+        size_t _bodyLen;
+        HttpError _httpError;
+        LocationConfig _myConfig;
 
-        // Request data
-        std::string requestMethod;
-        std::string requestPath;
-        std::string requestHttpVersion;
-        std::string requestBody;
-        std::map<std::string, std::string> requestHeaders;
-        
-        // Response data
-        std::map<std::string, std::string> responseHeaders;
-        std::string responseStatusCode;
-        std::string responseBody;
+        struct requestData {
+            long long _contentLength;
+            std::string _Root;
+            std::string _Index;
+            std::string _Redirect;
+            std::string _CgiPath;
+            std::string _CgiExt;
+            std::string _UploadDir;
+            bool Autoindex;
+            std::vector<std::string> _allowedMethods;
+            std::string _rawHeader;
+            std::string _path;
+            std::string _httpVersion;
+            std::string _method;
+            std::map<std::string, std::string> _headers;
+        } _s_requestData;
+            
+        struct responseData {
+            bool _hasError;
+            std::string _responseHttpVersion;
+            std::map<std::string, std::string> _responseHeaders;
+            long long _clientMaxBodySize;
+            std::string _responseHeader;
+            int _responseStatusCode;
+            std::string _responseBody;
+            std::string _response;
+        } _s_responseData;
 
-        // Parses a raw HTTP request string and returns an HttpRequest object
-        void parseRequest(const std::string &rawRequest);
-        
-        // Helper functions for parsing
-        void parseRequestLine(const std::string &line);
-        void parseHeaderLine(const std::string &line);
+        // Parses a raw HTTP request.
+        void parseRequest(std::string &rawRequest);
+        void parseHeader();
+        bool isMethodAllowed();
+        bool isBodySizeAllowed();
 
         // Response functions
-        void cgiResponse();
-        void getResponse();
-        void postResponse();
-        void deleteResponse();
+        void responseBuilder();
+        void testResponseBuilder();
+        void requestBilder(std::string &rawRequest);
+        LocationConfig getMyConfig();
+        bool isCGI();
 
+        void cgiResponseBuilder();
+        void getResponseBuilder();
+        void postResponseBuilder();
+        void deleteResponseBuilder();
+        
     public:
 
         // Constructor for creating HTTP responses
-        Http(std::string& rawRequest, ServerConfig &serverData);
+        Http (std::string &rawRequest, ServerConfig serverData);
 
         // Generates the HTTP response string
-        std::string responseBuilder();
+        bool getIsError() const;
+        int getStatusCode() const;
+        std::string getResponse() const;
 };
 
 #endif
