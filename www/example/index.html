@@ -1,22 +1,136 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pl">
 <head>
-    <meta charset="UTF-8">
-    <title>example</title>
-    <style>
-        body {
-            text-align: center;
-            }
-        h1 {
-            font-size: 48px;
-            }
-        p {
-            font-size: 18px;
-            }
-    </style>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Demo: /example (GET • POST • DELETE)</title>
+		<style>
+			body { font-family: sans-serif; margin: 16px; }
+			header { margin-bottom: 12px; }
+			.card { border: 1px solid #ddd; padding: 12px; margin: 12px 0; }
+			.row { display: flex; gap: 8px; flex-wrap: wrap; }
+			input[type="text"], input[type="file"] { flex: 1; padding: 6px; }
+			.btn { padding: 6px 10px; }
+			.btn.danger { background: #fdd; border: 1px solid #f88; }
+			.response { margin-top: 8px; padding: 8px; background: #f7f7f7; white-space: pre-wrap; }
+			.response.ok { background: #eaffea; }
+			.response.err { background: #ffecec; }
+		</style>
 </head>
 <body>
-    <h1>Example</h1>
-    <p>This is an example page.</p>
+			<header>
+				<h1>/example — minimal demo</h1>
+				<div class="muted">GET • POST (upload) • DELETE</div>
+			</header>
+	<main>
+				<!-- Minimal: no extra endpoint info -->
+
+		<!-- GET -->
+				<section class="card" id="get-card">
+					<h2>GET</h2>
+					<div class="row">
+						<input id="get-url" type="text" value="/example/data.txt" placeholder="/example/data.txt" />
+						<button class="btn" id="btn-get">GET</button>
+					</div>
+					<div id="get-resp" class="response" hidden></div>
+				</section>
+
+		<!-- POST (upload) -->
+				<section class="card" id="post-card">
+					<h2>POST</h2>
+					<input id="file" type="file" />
+					<div class="row" style="margin-top:8px">
+						<button class="btn" id="btn-post">Upload</button>
+						<button class="btn secondary" id="btn-post-text">Send text</button>
+					</div>
+					<div id="post-resp" class="response" hidden></div>
+				</section>
+
+		<!-- DELETE -->
+				<section class="card" id="delete-card">
+					<h2>DELETE</h2>
+					<div class="row">
+						<input id="del-url" type="text" value="/example/uploads/testfile.txt" placeholder="/example/uploads/name.txt" />
+						<button class="btn danger" id="btn-del">DELETE</button>
+					</div>
+					<div id="del-resp" class="response" hidden></div>
+				</section>
+
+				<!-- Minimal: no extra tips -->
+	</main>
+
+	<script>
+			function showResp(el, ok, text) {
+				el.hidden = false;
+				el.className = 'response ' + (ok ? 'ok' : 'err');
+				el.textContent = text;
+			}
+
+		// GET
+		document.getElementById('btn-get').addEventListener('click', async () => {
+			const url = (document.getElementById('get-url').value || '').trim();
+			const respBox = document.getElementById('get-resp');
+					if (!url.startsWith('/example')) {
+						return showResp(respBox, false, 'Path must start with /example');
+			}
+			try {
+				const res = await fetch(url, { method: 'GET' });
+				const body = await res.text();
+				showResp(respBox, res.ok, `Status: ${res.status} ${res.statusText}\n\n${body}`);
+			} catch (e) {
+						showResp(respBox, false, `Error: ${e.message}`);
+			}
+		});
+
+		// POST (upload file)
+		document.getElementById('btn-post').addEventListener('click', async () => {
+			const fileInput = document.getElementById('file');
+			const respBox = document.getElementById('post-resp');
+					if (!fileInput.files || !fileInput.files.length) {
+						return showResp(respBox, false, 'Pick a file to upload.');
+			}
+			const form = new FormData();
+			// Nazwa pola: 'file' — typowe dla uploadów; serwer powinien przyjąć multipart/form-data.
+			form.append('file', fileInput.files[0]);
+			try {
+				const res = await fetch('/example', { method: 'POST', body: form });
+				const body = await res.text();
+				showResp(respBox, res.ok, `Status: ${res.status} ${res.statusText}\n\n${body}`);
+			} catch (e) {
+						showResp(respBox, false, `Error: ${e.message}`);
+			}
+		});
+
+		// POST (simple text as multipart)
+		document.getElementById('btn-post-text').addEventListener('click', async () => {
+			const respBox = document.getElementById('post-resp');
+			const form = new FormData();
+			form.append('note', new Blob([`Demo upload ${new Date().toISOString()}`], { type: 'text/plain' }), 'note.txt');
+			try {
+				const res = await fetch('/example', { method: 'POST', body: form });
+				const body = await res.text();
+				showResp(respBox, res.ok, `Status: ${res.status} ${res.statusText}\n\n${body}`);
+			} catch (e) {
+						showResp(respBox, false, `Error: ${e.message}`);
+			}
+		});
+
+		// DELETE
+		document.getElementById('btn-del').addEventListener('click', async () => {
+			const url = (document.getElementById('del-url').value || '').trim();
+			const respBox = document.getElementById('del-resp');
+					if (!url.startsWith('/example/uploads/')) {
+						return showResp(respBox, false, 'Use a path under /example/uploads/...');
+			}
+					if (!confirm(`Delete file: ${url}?`)) return;
+			try {
+				const res = await fetch(url, { method: 'DELETE' });
+				const body = await res.text();
+				showResp(respBox, res.ok, `Status: ${res.status} ${res.statusText}\n\n${body}`);
+			} catch (e) {
+						showResp(respBox, false, `Error: ${e.message}`);
+			}
+		});
+	</script>
 </body>
 </html>
