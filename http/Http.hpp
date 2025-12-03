@@ -6,6 +6,7 @@
 #include <vector>
 #include <sstream>
 #include <stdexcept>
+#include <cstdlib>
 #include "../configReader/config.hpp"
 #include "../errors/error.hpp"
 
@@ -21,12 +22,12 @@ class Http {
 
         struct requestData {
             long long _contentLength;
-            std::string locationRoot;
-            std::string locationIndex;
-            std::string locationRedirect;
-            std::string locationCgiPath;
-            std::string locationCgiExt;
-            std::string locationUploadDir;
+            std::string _Root;
+            std::string _Index;
+            std::string _Redirect;
+            std::string _CgiPath;
+            std::string _CgiExt;
+            std::string _UploadDir;
             bool Autoindex;
             std::vector<std::string> _allowedMethods;
             std::string _rawHeader;
