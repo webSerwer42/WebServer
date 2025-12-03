@@ -96,22 +96,67 @@ bool Http::isBodySizeAllowed() {
 // Build CGI response
 void Http::cgiResponseBuilder() {
     // TODO: Implement
+
+    //temporary response
+    std::ostringstream html;
+    html << "HTTP/1.1 200 OK\r\n"
+         << "Content-Type: text/html\r\n"
+         << "Connection: close\r\n"
+         << "\r\n"
+         << "<h1>CGI Response</h1>\n"
+         << "<p>Path: " << _s_requestData._path << "</p>\n";
+    _s_responseData._response = html.str();
+    _s_responseData._responseStatusCode = 200;
 }
 
 // Build GET response
 void Http::getResponseBuilder() {
     // TODO: Implement
+
+    //temporary response
+    std::ostringstream html;
+    html << "HTTP/1.1 200 OK\r\n"
+         << "Content-Type: text/html\r\n"
+         << "Connection: close\r\n"
+         << "\r\n"
+         << "<h1>GET Method</h1>\n"
+         << "<p>Path: " << _s_requestData._path << "</p>\n";
+    _s_responseData._response = html.str();
+    _s_responseData._responseStatusCode = 200;
 }
 
 // Build POST response
 void Http::postResponseBuilder() {
     // TODO: Implement
+
+    //temporary response
+    std::ostringstream html;
+    html << "HTTP/1.1 200 OK\r\n"
+         << "Content-Type: text/html\r\n"
+         << "Connection: close\r\n"
+         << "\r\n"
+         << "<h1>POST Method</h1>\n"
+         << "<p>Path: " << _s_requestData._path << "</p>\n";
+    _s_responseData._response = html.str();
+    _s_responseData._responseStatusCode = 200;
 }
 
 // Build DELETE response
 void Http::deleteResponseBuilder() {
     // TODO: Implement
+
+    //temporary response
+    std::ostringstream html;
     
+    html << "HTTP/1.1 200 OK\r\n"
+         << "Content-Type: text/html\r\n"
+         << "Connection: close\r\n"
+         << "\r\n"
+         << "<h1>DELETE Method</h1>\n"
+         << "<p>Path: " << _s_requestData._path << "</p>\n";
+    
+    _s_responseData._response = html.str();
+    _s_responseData._responseStatusCode = 200;
 }
 
 bool Http::isCGI() {
