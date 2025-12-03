@@ -1,22 +1,85 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>internal</title>
-    <style>
-        body {
-            text-align: center;
-            }
-        h1 {
-            font-size: 48px;
-            }
-        p {
-            font-size: 18px;
-            }
-    </style>
+  <meta charset="UTF-8" />
+  <title>/internal demo</title>
+  <style>
+    body { font-family: sans-serif; margin: 16px; }
+    .row { display: flex; gap: 8px; margin-bottom: 8px; }
+    .response { margin-top: 8px; padding: 8px; background: #f7f7f7; }
+  </style>
 </head>
 <body>
-    <h1>internal</h1>
-    <p>this is an internal page</p>
+  <h1>/internal — minimal demo</h1>
+
+  <!-- GET -->
+  <div>
+    <div class="row">
+      <input id="get-url" type="text" value="/internal/index.html" />
+      <button id="btn-get">GET</button>
+    </div>
+    <div id="get-resp" class="response" hidden></div>
+  </div>
+
+  <!-- POST (upload) -->
+  <div>
+    <input id="file" type="file" />
+    <button id="btn-post">Upload</button>
+    <div id="post-resp" class="response" hidden></div>
+  </div>
+
+  <!-- CGI -->
+  <div>
+    <input id="cgi-url" type="text" value="/internal/test.py?name=John" />
+    <button id="btn-cgi">Run CGI</button>
+    <div id="cgi-resp" class="response" hidden></div>
+  </div>
+
+  <script>
+    function showResp(el, ok, text) {
+      el.hidden = false;
+      el.textContent = text;
+      el.style.background = ok ? '#eaffea' : '#ffecec';
+    }
+
+    document.getElementById('btn-get').onclick = async () => {
+      const url = document.getElementById('get-url').value.trim();
+      const respBox = document.getElementById('get-resp');
+      try {
+        const res = await fetch(url, { method: 'GET' });
+        const body = await res.text();
+        showResp(respBox, res.ok, `Status: ${res.status}\n${body}`);
+      } catch (e) {
+        showResp(respBox, false, `Error: ${e.message}`);
+      }
+    };
+
+    document.getElementById('btn-post').onclick = async () => {
+      const fileInput = document.getElementById('file');
+      const respBox = document.getElementById('post-resp');
+      if (!fileInput.files.length) return showResp(respBox, false, 'Pick a file.');
+      const form = new FormData();
+      form.append('file', fileInput.files[0]);
+      try {
+        const res = await fetch('/internal', { method: 'POST', body: form });
+        const body = await res.text();
+        showResp(respBox, res.ok, `Status: ${res.status}\n${body}`);
+      } catch (e) {
+        showResp(respBox, false, `Error: ${e.message}`);
+      }
+    };
+
+    document.getElementById('btn-cgi').onclick = async () => {
+      const url = document.getElementById('cgi-url').value.trim();
+      const respBox = document.getElementById('cgi-resp');
+      try {
+        const res = await fetch(url, { method: 'GET' });
+        const body = await res.text();
+        showResp(respBox, res.ok, `Status: ${res.status}\n${body}`);
+      } catch (e) {
+        showResp(respBox, false, `Error: ${e.message}`);
+      }
+    };
+  </script>
 </body>
 </html>
