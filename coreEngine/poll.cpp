@@ -4,31 +4,6 @@
 #include "../http/Http.hpp"
 #include "../errors/error.hpp"
 
-// void CoreEngine::closeClientConnection(size_t el)
-// {
-//    close(pollFDs[el].fd);
-
-//    // Wyczyść mapowanie dla tego klienta
-//    clientToServer.erase(el);
-
-//    // Przesuń elementy w pollFDs i zaktualizuj indeksy w mapowaniach
-//    for (size_t i = el; i < pollFDsNum - 1; i++)
-//    {
-//       pollFDs[i] = pollFDs[i + 1];
-
-//       // Zaktualizuj mapowania (indeksy się przesunęły!)
-//       if (clientToServer.find(i + 1) != clientToServer.end())
-//       {
-//          clientToServer[i] = clientToServer[i + 1];
-//          clientToServer.erase(i + 1);
-//       }
-//    }
-
-//    // Zmniejsz rozmiar tablicy pollFDs
-//    pollFDs = (pollfd *)realloc(pollFDs, (pollFDsNum - 1) * sizeof(pollfd));
-//    pollFDsNum--;
-// }
-
 void CoreEngine::setConnection(size_t i)
 {
    socklen_t addrLen = sizeof(sockaddr_storage);
@@ -63,11 +38,8 @@ void CoreEngine::recivNClose(size_t el)
    HttpError errorHandler;
    client.byteRecived = recv(pollFDs[el].fd, client.inputBuffer, 1024, 0);
    client.inputBuffer[client.byteRecived] = '\0';
-   if (client.byteRecived == -1)
+   if (client.byteRecived <= 0)
    {
-      // Wyślij 500 Internal Server Error
-      if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)
-         return; 
       std::cerr << "recv() failed: " << strerror(errno) << std::endl;
       std::string errorResponse = errorHandler.generateErrorResponse(500);
       client.hasError = true;
@@ -128,10 +100,8 @@ void CoreEngine::sendToClient(size_t el)
       std::cout << "---> What is response: " << object.getResponse() << std::endl;
       int byteSend = send(pollFDs[el].fd, object.getResponse().c_str() + client.sendOffset, 
          object.getResponse().size() - client.sendOffset, 0); // check if string functions are ok
-      if (byteSend == -1)
+      if (byteSend <= 0)
       {
-         if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)
-            return; 
          std::cerr << "send() failed: " << strerror(errno) << std::endl;
          // Wyślij 500 Internal Server Error
          HttpError errorHandler;
@@ -162,44 +132,8 @@ void CoreEngine::sendToClient(size_t el)
       client.sendBuffer = errorResponse;
       return;
    }
+   client.requestBuffer.clear();
+   client.sendBuffer.clear();
    pollFDs[el].events = POLLIN;
    // std::cout << "client: " << pollFDs[el].fd << " ready to send" << std::endl;
 }
-
-// void CoreEngine::sendToClient(size_t el)
-// {
-
-// try
-// {
-//    std::string requestStr(buffer);
-//    size_t serverIndex = clientToServer[el]; // pobierz indeks serwera dla tego klienta
-
-//    Http response(requestStr, serversCfg[serverIndex]); // użyj odpowiedniej konfiguracji serwera
-//       std::string responseStr = response.responseBuilder();
-//       int byteSend = send(pollFDs[el].fd, responseStr.c_str(), responseStr.size(), 0); // check if string functions are ok
-
-//       if (byteSend == -1)
-//       {
-//          std::cerr << "send() failed: " << strerror(errno) << std::endl;
-//          // Wyślij 500 Internal Server Error
-//          // HttpError errorHandler;
-//          // std::string errorResponse = errorHandler.generateErrorResponse(500);
-//          // send(pollFDs[el].fd, errorResponse.c_str(), errorResponse.size(), 0);
-//          return;
-//       }
-//    std::string str = "Packet send sukcesfully!\n";
-// }
-
-// catch (const std::exception& e)
-// {
-//    // Jeśli cokolwiek pójdzie nie tak podczas parsowania lub generowania response
-//    std::cerr << "Exception in sendToClient: " << e.what() << std::endl;
-
-//    // HttpError errorHandler;
-//    // std::string errorResponse = errorHandler.generateErrorResponse(500,
-//    // "An internal error occurred while processing your request.");
-//    // send(pollFDs[el].fd, errorResponse.c_str(), errorResponse.size(), 0);
-// }
-//    pollFDs[el].events = POLLIN;
-//    // std::cout << "client: " << pollFDs[el].fd << " ready to send" << std::endl;
-// }
