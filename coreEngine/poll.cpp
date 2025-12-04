@@ -88,16 +88,16 @@ void CoreEngine::sendToClient(size_t el)
 {
    client &client = this->getClientByFD(pollFDs[el].fd);
    std::cout << "--->this is request buffer: " << client.requestBuffer << std::endl;
+   std::cout << "actual client: " << client.FD << std::endl;
    try
    {
       //Http response(client.sendBuffer);
-
       Http object(client.requestBuffer, client.serverCfg);
       if (object.getIsError())
          client.hasError = true;
       // Obsluga erroruw w Http class
       // std::string responseStr to object.responseBuilder();
-      std::cout << "---> What is response: " << object.getResponse() << std::endl;
+      // std::cout << "---> What is response: " << object.getResponse() << std::endl;
       int byteSend = send(pollFDs[el].fd, object.getResponse().c_str() + client.sendOffset, 
          object.getResponse().size() - client.sendOffset, 0); // check if string functions are ok
       if (byteSend <= 0)
