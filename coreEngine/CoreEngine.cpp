@@ -15,13 +15,20 @@ CoreEngine::CoreEngine(const std::vector<ServerConfig> &serversCfg) : serversCfg
 void CoreEngine::setSocket(size_t i)
 {
    // this is creation of listening sockets, pushing to vector
-   socketFD.push_back(socket(serv->ai_family, SOCK_STREAM, 0)); // error check missing
+   // socketFD.push_back(socket(serv->ai_family, SOCK_STREAM, 0)); // error check missing
    // release soket from kernel hold, allow to multile use after close
+   int FD = socket(serv->ai_family, SOCK_STREAM, 0);
+   if(FD == -1)
+   {
+      std::cerr << "socket() failed: " << strerror(errno) << std::endl;
+      return;
+   }
+   socketFD.push_back(FD);
    int option = 1;
    if (setsockopt(socketFD[i], SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) == -1)
    {
       std::cerr << "setsockopt() failed: " << strerror(errno) << std::endl;
-      exit(EXIT_FAILURE);
+      return;
    }
    // setting AF_INET6 wasnt specified in subect but i did it as a real world case scenario
    if (serv->ai_family == AF_INET6)
@@ -31,7 +38,8 @@ void CoreEngine::setSocket(size_t i)
       if (setsockopt(socketFD[i], IPPROTO_IPV6, IPV6_V6ONLY, &yes, sizeof(yes)) == -1)
       {
          std::cerr << "setsockopt() failed: " << strerror(errno) << std::endl;
-         exit(EXIT_FAILURE);
+         close(socketFD[i]);
+         return;
       }
    }
    // this function set sockets to be non-blocking, connection will not hold program from further execution
@@ -42,20 +50,21 @@ void CoreEngine::setSocket(size_t i)
    if (bind(socketFD[i], serv->ai_addr, serv->ai_addrlen) == -1)
    {
       std::cerr << "bind() failed: " << strerror(errno) << std::endl;
-      exit(EXIT_FAILURE);
+      close(socketFD[i]);
+      return;
    }
    // last param for listen in number of connection allowed on the incoming queue
    if (listen(socketFD[i], backlogNum) == -1)
    {
       std::cerr << "listen() failed: " << strerror(errno) << std::endl;
-      exit(EXIT_FAILURE);
+      close(socketFD[i]);
+      return;
    }
 }
 
 void CoreEngine::coreEngine()
 {
    // this function will be adjusted to data provided after parsing config file
-
    size_t j = 0;
    // initializig listeling sockets by every config 
    for(size_t i = 0; i < serversCfg.size(); i++)
@@ -94,15 +103,14 @@ void CoreEngine::coreEngine()
    std::cout << "number of listening sockets: " << lSockNum << std::endl;
 
    pollFDsNum = lSockNum;
-   while (true)
+   while (pollFDsNum > 0)
    {
       int pollstatus = poll(pollFDs, pollFDsNum, poolTimeout);
-      // std::cout << "pollstatus: " << pollstatus << std::endl;
       if (pollstatus > 0)
       {
          for (size_t i = 0; i < pollFDsNum; i++)
          {
-            // std::cout << "pollFDs num: " << pollFDsNum << std::endl;
+            // std::cout << "Socket: " << pollFDs[i].fd << std::endl;
             // only on listening sockets, after first request
             if ((pollFDs[i].revents & POLLIN) && (i < lSockNum) && !(isClientFD[i]))
                setConnection(i);
@@ -114,27 +122,18 @@ void CoreEngine::coreEngine()
             if (pollFDs[i].revents & POLLHUP) // consider it coz might be unnesesary.
             {
                std::cout << "client on FD: " << pollFDs[i].fd << " has disconnected" << std::endl;
-               close(pollFDs[i].fd);
-               i--; // adjust loop counter
+               closeCLient(i);
+               continue;
             }
             if (pollFDs[i].revents & POLLERR)
             {
+               // means connection is broken, no point to send error to client
                std::cout << "poll() failed: revent return POLLERR on FD: " << pollFDs[i].fd << std::endl;
-               // Send HTTP 500 error before closing
-               // HttpError errorHandler;
-               // std::string errorResponse = errorHandler.generateErrorResponse(500);
-               // send(pollFDs[i].fd, errorResponse.c_str(), errorResponse.size(), 0);
-               
-               close(pollFDs[i].fd);
-               i--; // adjust loop counter
+               closeCLient(i);
+               continue;
             }
          }
       }
       usleep(100000);
    }
-
-   close(socketFD[0]);
-   close(socketFD[1]);
-   // close clientFD
-   freeaddrinfo(serv);
 }
