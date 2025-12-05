@@ -128,7 +128,24 @@ void Config::parseLines(std::ifstream& file) {
             else
                 currentServer.root = r;
         }
-        else if (key == "route") {
+
+        else if (key == "return") {
+            int code;
+            std::string url;
+            iss >> code >> url;
+
+            if (inLocation) {
+            currentLocation.has_redirect = true;
+            currentLocation.redirect_code = code;
+            currentLocation.redirect_url = url;
+            } else {
+            currentServer.has_redirect = true;
+            currentServer.redirect_code = code;
+            currentServer.redirect_url = url;
+            }
+        }
+
+        else if (key == "location") {
             if (inLocation)
                 currentServer.locations[currentLocationPath] = currentLocation;
             iss >> currentLocationPath;
@@ -182,6 +199,13 @@ LocationConfig Config::getMergedLocationConfig(
     
     if (merged.cgi_ext.empty()) 
         merged.cgi_ext = server.cgi_ext;
+
+    // dla return
+    if (merged.has_redirect == false) {
+        merged.has_redirect = server.has_redirect;
+        merged.redirect_code = server.redirect_code;
+        merged.redirect_url = server.redirect_url;
+    }
     
     // Dla error_pages - merge map (location nadpisuje serwer)
     if (merged.error_pages.empty()) 
