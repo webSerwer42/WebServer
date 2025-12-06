@@ -7,6 +7,10 @@
 #include <sstream>
 #include <stdexcept>
 #include <cstdlib>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <dirent.h>
 #include "../configReader/config.hpp"
 #include "../errors/error.hpp"
 
@@ -60,6 +64,16 @@ class Http {
         void requestBilder(std::string &rawRequest);
         LocationConfig getMyConfig();
         bool isCGI();
+        void handleRootPath();
+        void handleDirectory(const std::string& dirPath, const std::string& urlPath);
+        void sendRedirect(const std::string& url, int code);
+        bool resourceExists(const std::string& path);
+        void sendError(int errorCode);
+        bool isDirectory(const std::string& path);
+        void handleFile(const std::string& filePath);
+        std::string determineMimeType(const std::string& path);
+        void generateDirectoryListing(const std::string& dirPath);
+
 
         void cgiResponseBuilder();
         void getResponseBuilder();

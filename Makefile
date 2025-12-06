@@ -8,7 +8,8 @@ SRCS = main.cpp \
 		configReader/config.cpp \
 		configReader/printConfig.cpp \
 		utils/utils.cpp \
-		errors/error.cpp
+		errors/error.cpp \
+		http/test.cpp
 
 
 OBJS = ${SRCS:.cpp=.o}

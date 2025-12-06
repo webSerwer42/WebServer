@@ -5,6 +5,8 @@
 // Constructor
 Http::Http (std::string &rawRequest, ServerConfig serverData){
 
+    std::cout << "Debug: Entering Http constructor" << std::endl;
+
     _rawRequestPtr = &rawRequest;
     _serverData = serverData;
 
@@ -34,15 +36,13 @@ void Http::parseRequest(std::string &rawRequest) {
         _bodyLen = rawRequest.length() - (headerEnd + 4);
     } else {
         _s_requestData._rawHeader = rawRequest;
-
-        // Debug output
-        std::cout << "=== NO \\r\\n\\r\\n FOUND, RAW HEADER ===\n"
-                    << _s_requestData._rawHeader
-                    << "\n=== END ===" << std::endl;
-        std::cout << "=== RAW REQUEST ===\n" 
-                    << rawRequest
-                    << "\n=== END RAW REQUEST ===" << std::endl;
-
+        // // Debug output
+        // std::cout << "=== NO \\r\\n\\r\\n FOUND, RAW HEADER ===\n"
+        //             << _s_requestData._rawHeader
+        //             << "\n=== END ===" << std::endl;
+        // std::cout << "=== RAW REQUEST ===\n" 
+        //             << rawRequest
+        //             << "\n=== END RAW REQUEST ===" << std::endl;
         _rawRequestPtr = NULL;
         _bodyStart = 0;
         _bodyLen = 0;
@@ -58,7 +58,7 @@ void Http::parseHeader() {
     // Parse request line
     if (std::getline(stream, line)) {
         std::istringstream lineStream(line);
-        std::string method, path, version;     std::string _rawBody;
+        std::string method, path, version;
         
         lineStream >> method >> path >> version;
     
@@ -119,30 +119,259 @@ void Http::cgiResponseBuilder() {
 
 // Build GET response
 void Http::getResponseBuilder() {
-    // TODO: Implement
-    std::cout << "Debug: In getResponseBuilder()" << std::endl;
-    //temporary response
-    std::ostringstream html;
-    html << "HTTP/1.1 200 OK\r\n"
-         << "Content-Type: text/html\r\n"
-         << "Connection: close\r\n"
-         << "\r\n"
-         << "<h1>GET Method</h1>\n"
-         << "<p>Path: " << _s_requestData._path << "</p>\n"
-         << "<p><strong>root:</strong> " << _myConfig.index << "</p>\n"
-         << "<p><strong>route:</strong> " << _myConfig.root << "</p>\n";
-    _s_responseData._response = html.str();
-    _s_responseData._responseStatusCode = 200;
+// ✅ NAJPIERW sprawdź redirect z configu
+    if (_myConfig.has_redirect) {
+        sendRedirect(_myConfig.redirect_url, _myConfig.redirect_code);
+        return;
+    }
 
-    //     if (_s_requestData._path == "/"){
-    //     if (!_myConfig.index.empty()) {
-    //         if (_myConfig.index.size() > 0) {
-    //
-    //         }
-    //     }
-    // })
-
+// Usuń query string ze ścieżki
+    std::string cleanPath = _s_requestData._path;
+    size_t queryPos = cleanPath.find('?');
+    if (queryPos != std::string::npos) {
+        cleanPath = cleanPath.substr(0, queryPos);
+    }
+    
+// Krok 1: Obsługa głównej ścieżki "/"
+    if (cleanPath == "/") {
+        handleRootPath();
+        return;
+    }
+    
+    // Krok 2: Zbuduj pełną ścieżkę
+    std::string fullPath = _myConfig.root + cleanPath;
+    
+    // Krok 3: Sprawdź czy zasób istnieje
+    if (!resourceExists(fullPath)) {
+        sendError(404);
+        return;
+    }
+    
+    // Krok 4: Sprawdź typ zasobu
+    if (isDirectory(fullPath)) {
+        handleDirectory(fullPath, cleanPath);
+    } else {
+        handleFile(fullPath);
+    }
 }
+
+bool Http::isDirectory(const std::string& path) {
+    //stat() - dozwolona funkcja
+    struct stat buffer;
+    if (stat(path.c_str(), &buffer) != 0) {
+        return false;
+    }
+    return S_ISDIR(buffer.st_mode);
+}
+
+void Http::sendError(int errorCode) {
+    _s_responseData._hasError = true;
+    _s_responseData._responseStatusCode = errorCode;
+    _s_responseData._response = _httpError.generateErrorResponse(errorCode);
+}
+
+
+
+bool Http::resourceExists(const std::string& path) {
+    return (access(path.c_str(), F_OK) == 0);
+}
+
+void Http::sendRedirect(const std::string& newLocation, int code) {
+    // Domyślnie 301 jeśli nie podano
+    if (code == 0) {
+        code = 301;
+    }
+    
+    _s_responseData._responseStatusCode = code;
+    std::ostringstream response;
+    
+    std::string statusText;
+    switch (code) {
+        case 301: statusText = "Moved Permanently"; break;
+        case 302: statusText = "Found"; break;
+        case 303: statusText = "See Other"; break;
+        case 307: statusText = "Temporary Redirect"; break;
+        case 308: statusText = "Permanent Redirect"; break;
+        default: statusText = "Moved Permanently"; code = 301; break;
+    }
+    
+    response << "HTTP/1.1 " << code << " " << statusText << "\r\n"
+             << "Location: " << newLocation << "\r\n"
+             << "Connection: close\r\n"
+             << "\r\n";
+    
+    _s_responseData._response = response.str();
+}
+
+std::string Http::determineMimeType(const std::string& path) {
+    size_t dotPos = path.rfind('.');
+    if (dotPos == std::string::npos) {
+        return "application/octet-stream";
+    }
+    
+    std::string extension = path.substr(dotPos);
+    
+    if (extension == ".html" || extension == ".htm")
+        return "text/html";
+    if (extension == ".css")
+        return "text/css";
+    if (extension == ".js")
+        return "application/javascript";
+    if (extension == ".png")
+        return "image/png";
+    if (extension == ".jpg" || extension == ".jpeg")
+        return "image/jpeg";
+    if (extension == ".gif")
+        return "image/gif";
+    if (extension == ".txt")
+        return "text/plain";
+    
+    return "application/octet-stream";
+}
+
+void Http::handleFile(const std::string& filePath) {
+    int fd = open(filePath.c_str(), O_RDONLY);
+    
+    if (fd == -1) {
+        sendError(403);
+        return;
+    }
+    
+    struct stat fileStat;
+    if (fstat(fd, &fileStat) == -1) {
+        close(fd);
+        sendError(500);
+        return;
+    }
+    
+    char* buffer = new char[fileStat.st_size + 1];
+    ssize_t bytesRead = read(fd, buffer, fileStat.st_size);
+    close(fd);
+    
+    if (bytesRead == -1) {
+        delete[] buffer;
+        sendError(500);
+        return;
+    }
+    
+    buffer[bytesRead] = '\0';
+    std::string body(buffer, bytesRead);
+    delete[] buffer;
+    
+    std::string mimeType = determineMimeType(filePath);
+    
+    // Zbuduj odpowiedź
+    std::ostringstream response;
+    response << "HTTP/1.1 200 OK\r\n"
+             << "Content-Type: " << mimeType << "\r\n"
+             << "Content-Length: " << body.length() << "\r\n"
+             << "Connection: close\r\n"
+             << "\r\n"
+             << body;
+    
+    _s_responseData._response = response.str();
+    _s_responseData._responseStatusCode = 200;
+}
+
+void Http::generateDirectoryListing(const std::string& dirPath) {
+    // ✅ Używamy opendir() i readdir() - dozwolone funkcje
+    DIR* dir = opendir(dirPath.c_str());
+    if (!dir) {
+        sendError(500);
+        return;
+    }
+    
+    std::ostringstream html;
+    html << "<html>\n<head>\n<title>Index of " << _s_requestData._path << "</title>\n</head>\n"
+         << "<body>\n<h1>Index of " << _s_requestData._path << "</h1>\n<hr>\n<ul>\n";
+    
+    // Dodaj link do katalogu nadrzędnego
+    if (_s_requestData._path != "/") {
+        html << "<li><a href=\"..\">../</a></li>\n";
+    }
+    
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != NULL) {
+        std::string name = entry->d_name;
+        
+        // Pomiń . i ..
+        if (name == "." || name == "..") {
+            continue;
+        }
+        
+        std::string fullPath = dirPath + "/" + name;
+        
+        // Sprawdź czy to katalog
+        if (isDirectory(fullPath)) {
+            html << "<li><a href=\"" << name << "/\">" << name << "/</a></li>\n";
+        } else {
+            html << "<li><a href=\"" << name << "\">" << name << "</a></li>\n";
+        }
+    }
+    
+    closedir(dir); // ✅ closedir() - dozwolona funkcja
+    
+    html << "</ul>\n<hr>\n</body>\n</html>";
+    
+    std::string body = html.str();
+    std::ostringstream response;
+    response << "HTTP/1.1 200 OK\r\n"
+             << "Content-Type: text/html\r\n"
+             << "Content-Length: " << body.length() << "\r\n"
+             << "Connection: close\r\n"
+             << "\r\n"
+             << body;
+    
+    _s_responseData._response = response.str();
+    _s_responseData._responseStatusCode = 200;
+}
+
+void Http::handleRootPath() {
+    // Jeśli jest skonfigurowany index
+    if (!_myConfig.index.empty()) {
+        std::string indexPath = _myConfig.root + "/" + _myConfig.index;
+        
+        if (resourceExists(indexPath)) {
+            handleFile(indexPath);
+            return;
+        }
+    }
+    // Brak index - sprawdź autoindex
+    if (_myConfig.autoindex) {
+        generateDirectoryListing(_myConfig.root);
+    } else {
+        sendError(403);
+    }
+}
+
+void Http::handleDirectory(const std::string& dirPath, const std::string& urlPath) {
+    // Czy URL kończy się na '/'?
+    if (urlPath[urlPath.length() - 1] != '/') {
+        // Jeśli nie, dodaj '/' na końcu
+        // przekieruj
+        sendRedirect(urlPath + "/", 301);
+        return;
+    }
+    
+    // Szukaj pliku index
+    if (!_myConfig.index.empty()) {
+        std::string indexPath = dirPath + "/" + _myConfig.index;
+        
+        if (resourceExists(indexPath)) {
+            handleFile(indexPath);
+            return;
+        }
+    }
+    
+    // Nie ma index - sprawdź autoindex
+    if (_myConfig.autoindex) {
+        generateDirectoryListing(dirPath);
+    } else {
+        sendError(403);
+    }
+}
+
+
 
 // Build POST response
 void Http::postResponseBuilder() {
