@@ -4,7 +4,7 @@
 #include "../errors/error.hpp"
 
 CoreEngine::CoreEngine(const std::vector<ServerConfig> &serversCfg) : serversCfg(serversCfg), serv(NULL), 
-   pollFDs(NULL), lSockNum(0), poolTimeout(1000), pollFDsNum(0), backlogNum(128)
+    lSockNum(0), poolTimeout(1000), pollFDsNum(0), backlogNum(128)
 {
    memset(&hints, 0, sizeof(sockaddr_in));
    hints.ai_family = AF_UNSPEC;     // for both IP4 & IP6
@@ -89,9 +89,11 @@ void CoreEngine::coreEngine()
          // serverFDtoIndex[socketFD[j]] = i; // mapowanie server FD -> config index
          lSockNum++;
          // realloc is nessesary due to dynamics changes to pollfd array, it holds all sockets events data 
-         pollFDs = (pollfd *)realloc(pollFDs, (lSockNum + 1) * sizeof(pollfd));
-         pollFDs[j].fd = socketFD[j];
-         pollFDs[j].events = POLLIN;
+         // pollFDs = (pollfd *)realloc(pollFDs, (lSockNum + 1) * sizeof(pollfd));
+         pollfd pfd;
+         pfd.fd = socketFD[j];
+         pfd.events = POLLIN;
+         pollFDs.push_back(pfd);
          j++;
          if (serv->ai_next == NULL)
             break;
@@ -105,7 +107,7 @@ void CoreEngine::coreEngine()
    pollFDsNum = lSockNum;
    while (pollFDsNum > 0)
    {
-      int pollstatus = poll(pollFDs, pollFDsNum, poolTimeout);
+      int pollstatus = poll(&(pollFDs[0]), pollFDsNum, poolTimeout);
       if (pollstatus > 0)
       {
          for (size_t i = 0; i < pollFDsNum; i++)
@@ -134,6 +136,6 @@ void CoreEngine::coreEngine()
             }
          }
       }
-      usleep(100000);
+      // usleep(100000);
    }
 }

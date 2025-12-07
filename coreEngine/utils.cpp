@@ -19,14 +19,16 @@ void CoreEngine::closeCLient(int el)
             break;
         }
     close(pollFDs[el].fd);
-    for (int i = el; i < (int)pollFDsNum; i++)
-    {
-        if (el == ((int)pollFDsNum - 1))
-            break;
-        pollFDs[i] = pollFDs[i + 1];
-    }
-    // shirinking pollfd
-
-    pollFDs = (pollfd *)realloc(pollFDs, (pollFDsNum - 1) * sizeof(pollfd));
+    pollFDs.erase(pollFDs.begin() + el);
     pollFDsNum--;
+}
+
+void CoreEngine::prepareResponse(client &client, size_t el)
+{
+    Http object(client.requestBuffer, client.serverCfg);
+    if (object.getIsError())
+        client.hasError = true;
+    client.sendBuffer = object.getResponse();
+    pollFDs[el].events = POLLOUT;
+    std::cout << "--> This is Response: " << object.getResponse().c_str() << std::endl;
 }

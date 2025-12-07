@@ -1,8 +1,6 @@
 // Copyright [2025] <Piotr Ruszkiewicz> <pruszkie@student.42warsaw.pl>
 
 #include "CoreEngine.hpp"
-#include "../http/Http.hpp"
-#include "../errors/error.hpp"
 
 void CoreEngine::setConnection(size_t i)
 {
@@ -19,9 +17,12 @@ void CoreEngine::setConnection(size_t i)
       std::cerr << "accept() failed: " << strerror(errno) << std::endl;
       exit(1);
    }
-   pollFDs = (pollfd *)realloc(pollFDs, (pollFDsNum + 1) * sizeof(pollfd));
-   pollFDs[pollFDsNum].fd = client.FD;
-   pollFDs[pollFDsNum].revents = 0;
+   pollfd pfd;
+
+   // pollFDs = (pollfd *)realloc(pollFDs, (pollFDsNum + 1) * sizeof(pollfd));
+   pfd.fd = client.FD;
+   pfd.revents = 0;
+   pollFDs.push_back(pfd);
 
    isClientFD[pollFDsNum] = true;
    // clientToServer[pollFDsNum] = serverFDtoIndex[pollFDs[i].fd]; // zapisz który serwer przyjął połączenie
@@ -37,14 +38,15 @@ void CoreEngine::recivNClose(size_t el)
    client &client = this->getClientByFD(pollFDs[el].fd);
    HttpError errorHandler;
    client.byteRecived = recv(pollFDs[el].fd, client.inputBuffer, 1024, 0);
-   client.inputBuffer[client.byteRecived] = '\0';
-   if (client.byteRecived <= 0)
+   if (client.byteRecived >= 0)
+      client.inputBuffer[client.byteRecived] = '\0';
+   if (client.byteRecived < 0)
    {
       std::cerr << "recv() failed: " << strerror(errno) << std::endl;
       std::string errorResponse = errorHandler.generateErrorResponse(500);
       client.hasError = true;
-      pollFDs[el].events = POLLOUT;
       client.sendBuffer = errorResponse;
+      prepareResponse(client, el);
       return;
    }
    // this is closing socket logic, when send EOF by client EOF
@@ -60,8 +62,8 @@ void CoreEngine::recivNClose(size_t el)
          std::string errorResponse = errorHandler.generateErrorResponse(400,
             "The request is empty or does not contain valid HTTP headers.");
          client.hasError = true;
-         pollFDs[el].events = POLLOUT;
          client.sendBuffer = errorResponse;
+         prepareResponse(client, el);
          return;
       }
       // czy buffer jest za mały (413)
@@ -71,16 +73,16 @@ void CoreEngine::recivNClose(size_t el)
          std::string errorResponse = errorHandler.generateErrorResponse(413,
             "The request payload exceeds the maximum buffer size of 1024 bytes.");
          client.hasError = true;
-         pollFDs[el].events = POLLOUT;
          client.sendBuffer = errorResponse;
+         prepareResponse(client, el);
          return;
       }
       // collecting chunks of recived data
       std::string temp(client.inputBuffer);
-      client.requestBuffer += temp;
+      client.requestBuffer += temp; 
       size_t index = client.requestBuffer.find("\r\n\r\n");
       if(index != std::string::npos)
-         pollFDs[el].events = POLLOUT;
+         prepareResponse(client, el);
    }
 }
 
@@ -92,14 +94,11 @@ void CoreEngine::sendToClient(size_t el)
    try
    {
       //Http response(client.sendBuffer);
-      Http object(client.requestBuffer, client.serverCfg);
-      if (object.getIsError())
-         client.hasError = true;
       // Obsluga erroruw w Http class
       // std::string responseStr to object.responseBuilder();
       // std::cout << "---> What is response: " << object.getResponse() << std::endl;
-      int byteSend = send(pollFDs[el].fd, object.getResponse().c_str() + client.sendOffset, 
-         object.getResponse().size() - client.sendOffset, 0); // check if string functions are ok
+      int byteSend = send(pollFDs[el].fd, client.sendBuffer.c_str() + client.sendOffset, 
+         client.sendBuffer.size() - client.sendOffset, 0); // check if string functions are ok
       if (byteSend <= 0)
       {
          std::cerr << "send() failed: " << strerror(errno) << std::endl;
@@ -109,7 +108,7 @@ void CoreEngine::sendToClient(size_t el)
          closeCLient(el);
          return;
       }
-      if((0 < byteSend) && (byteSend < (int)object.getResponse().size()))
+      if((0 < byteSend) && (byteSend < (int)client.sendBuffer.size()))
       {
          client.sendOffset += byteSend;
          return;
@@ -134,6 +133,17 @@ void CoreEngine::sendToClient(size_t el)
    }
    client.requestBuffer.clear();
    client.sendBuffer.clear();
+   client.sendOffset = 0;
    pollFDs[el].events = POLLIN;
    // std::cout << "client: " << pollFDs[el].fd << " ready to send" << std::endl;
 }
+
+/*
+-keep full requestBuffer 
+-kepp leftover for next 
+-flag POLLOUT for sending 
+-send first request -clean requestBuffer 
+-flag to POLLIN 
+-move leftover to requestBuffer 
+-continue with reciving
+*/

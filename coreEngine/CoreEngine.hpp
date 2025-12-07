@@ -21,6 +21,8 @@
 #include <vector>
 
 #include "../configReader/config.hpp"
+#include "../errors/error.hpp"
+#include "../http/Http.hpp"
 
 class CoreEngine
 {
@@ -31,21 +33,25 @@ private:
             ServerConfig serverCfg;
             std::string sendBuffer;
             std::string requestBuffer;
+            std::string leftooverBuffer;
+            std::vector<std::string> requestBufferVec;
             char inputBuffer[1024];
             size_t sendOffset;
             bool hasError;
             int byteRecived;
             int FD;
-        }; // it could go to base object.
+        }; 
         client &getClientByFD(int socketFD);
         void closeCLient(int el);
+        void prepareResponse(client &client, size_t el);
         addrinfo hints;                       // base config of server
         std::vector<ServerConfig> serversCfg; // list of object parsed cfgfiles
         addrinfo *serv;
         std::vector<int> socketFD;    // vector holding all socketsFD
         std::vector<bool> isClientFD; // consider switching it to map
         std::vector<client> clientVec;
-        pollfd *pollFDs;   // struct that holds data about socketFD, its events and responses to it
+        std::vector<pollfd> pollFDs;
+        // pollfd *pollFDs;   // struct that holds data about socketFD, its events and responses to it
         size_t lSockNum;   // number of listening sockets
         int poolTimeout;   // time interval for poll() checking for event
         size_t pollFDsNum; // number of structs corresponding total number of sockets
@@ -58,7 +64,6 @@ private:
         void recivNClose(size_t i);
         void sendToClient(size_t i);
         void coreEngine();
-        // std::string getBuffer();
 };
 
 #endif
