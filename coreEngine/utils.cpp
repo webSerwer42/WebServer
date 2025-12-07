@@ -23,12 +23,13 @@ void CoreEngine::closeCLient(int el)
     pollFDsNum--;
 }
 
-void CoreEngine::prepareResponse(client &client, size_t el)
+std::string CoreEngine::prepareResponse(client &client, size_t el, size_t res)
 {
-    Http object(client.requestBuffer, client.serverCfg);
+    std::cout << "-->This is request: " << client.requestBufferVec[res] << std::endl;
+    Http object(client.requestBufferVec[res], client.serverCfg);
     if (object.getIsError())
         client.hasError = true;
-    client.sendBuffer = object.getResponse();
     pollFDs[el].events = POLLOUT;
     std::cout << "--> This is Response: " << object.getResponse().c_str() << std::endl;
+    return object.getResponse();
 }
