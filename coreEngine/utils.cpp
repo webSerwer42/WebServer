@@ -25,11 +25,11 @@ void CoreEngine::closeCLient(int el)
 
 std::string CoreEngine::prepareResponse(client &client, size_t el, size_t res)
 {
-    std::cout << "-->This is request: " << client.requestBufferVec[res] << std::endl;
+    std::cout << YELLOW << "-->This is request: " << client.requestBufferVec[res] << std::endl;
     Http object(client.requestBufferVec[res], client.serverCfg);
     if (object.getIsError())
         client.hasError = true;
     pollFDs[el].events = POLLOUT;
-    std::cout << "--> This is Response: " << object.getResponse().c_str() << std::endl;
+    std::cout << ORANGE << "--> This is Response: " << object.getResponse().c_str()<< RESET << std::endl;
     return object.getResponse();
 }

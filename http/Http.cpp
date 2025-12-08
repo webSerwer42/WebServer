@@ -5,7 +5,7 @@
 // Constructor
 Http::Http (std::string &rawRequest, ServerConfig serverData){
 
-    std::cout << "Debug: Entering Http constructor" << std::endl;
+    //std::cout << "Debug: Entering Http constructor" << std::endl;
 
     _rawRequestPtr = &rawRequest;
     _serverData = serverData;
@@ -18,6 +18,8 @@ Http::Http (std::string &rawRequest, ServerConfig serverData){
     requestBilder(rawRequest);
     responseBuilder();
     //testResponseBuilder();
+    std::cout << GREEN << "Debug: Exiting Http constructor" << std::endl;
+    std::cout << _s_responseData._response << RESET << std::endl;
 }
 
 void Http::requestBilder(std::string &rawRequest) {
@@ -36,13 +38,13 @@ void Http::parseRequest(std::string &rawRequest) {
         _bodyLen = rawRequest.length() - (headerEnd + 4);
     } else {
         _s_requestData._rawHeader = rawRequest;
-        // // Debug output
-        // std::cout << "=== NO \\r\\n\\r\\n FOUND, RAW HEADER ===\n"
-        //             << _s_requestData._rawHeader
-        //             << "\n=== END ===" << std::endl;
-        // std::cout << "=== RAW REQUEST ===\n" 
-        //             << rawRequest
-        //             << "\n=== END RAW REQUEST ===" << std::endl;
+        // Debug output
+        std::cout << RED << "=== NO \\r\\n\\r\\n FOUND, RAW HEADER ===\n"
+                    << _s_requestData._rawHeader
+                    << "\n=== END ===" << std::endl;
+        std::cout << "=== RAW REQUEST ===\n" 
+                    << rawRequest
+                    << "\n=== END RAW REQUEST ===" << RESET << std::endl;
         _rawRequestPtr = NULL;
         _bodyStart = 0;
         _bodyLen = 0;
