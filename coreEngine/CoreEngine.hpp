@@ -32,7 +32,7 @@ private:
             sockaddr_storage clientSockaddr;
             ServerConfig serverCfg;
             std::string sendBuffer;
-            std::string requestBuffer;
+            // std::string requestBuffer;
             std::string leftooverBuffer;
             std::vector<std::string> requestBufferVec;
             char inputBuffer[1024];
@@ -43,7 +43,7 @@ private:
         }; 
         client &getClientByFD(int socketFD);
         void closeCLient(int el);
-        void prepareResponse(client &client, size_t el);
+        std::string prepareResponse(client &client, size_t el, size_t res);
         addrinfo hints;                       // base config of server
         std::vector<ServerConfig> serversCfg; // list of object parsed cfgfiles
         addrinfo *serv;
