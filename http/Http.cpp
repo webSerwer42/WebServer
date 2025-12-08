@@ -11,11 +11,11 @@ Http::Http (std::string &rawRequest, ServerConfig serverData){
     _serverData = serverData;
 
     // Get location-specific configuration
+    requestBilder(rawRequest);
     _myConfig = getMyConfig();
     // Initialize HttpError with server or location-specific error pages
     _httpError = HttpError(_myConfig.error_pages);
 
-    requestBilder(rawRequest);
     responseBuilder();
     //testResponseBuilder();
     std::cout << GREEN << "Debug: Exiting Http constructor" << std::endl;
@@ -135,13 +135,15 @@ void Http::getResponseBuilder() {
     }
     
 // Krok 1: Obsługa głównej ścieżki "/"
+    cleanPath = cleanPath.empty() ? "/" : cleanPath;
+    // Zła obsługa Route miesza rout z katalogami serwera.
     if (cleanPath == "/") {
         handleRootPath();
         return;
     }
     
     // Krok 2: Zbuduj pełną ścieżkę
-    std::string fullPath = _myConfig.root + cleanPath;
+    std::string fullPath = _myConfig.root;// + cleanPath;
     
     // Krok 3: Sprawdź czy zasób istnieje
     if (!resourceExists(fullPath)) {
