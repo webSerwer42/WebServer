@@ -121,7 +121,7 @@ void Http::cgiResponseBuilder() {
 
 // Build GET response
 void Http::getResponseBuilder() {
-// ✅ NAJPIERW sprawdź redirect z configu
+// NAJPIERW sprawdź redirect z configu
     if (_myConfig.has_redirect) {
         sendRedirect(_myConfig.redirect_url, _myConfig.redirect_code);
         return;
@@ -143,7 +143,21 @@ void Http::getResponseBuilder() {
     }
     
     // Krok 2: Zbuduj pełną ścieżkę
-    std::string fullPath = _myConfig.root;// + cleanPath;
+    // Usuwa location_path z URI, żeby zostać z rzeczywistą ścieżką pliku
+    std::string test1 = _myConfig.location_path;
+    std::string filePath = cleanPath;
+    if (!_myConfig.location_path.empty() && cleanPath.find(_myConfig.location_path) == 0) {
+        // Usuń location_path z początku
+        filePath = cleanPath.substr(_myConfig.location_path.length());
+    }
+
+    // Jeśli filePath jest pusta lub to tylko "/", obsłuż jako root lokacji
+    if (filePath.empty() || filePath == "/") {
+        handleRootPath();
+        return;
+    }
+
+    std::string fullPath = _myConfig.root + filePath;
     
     // Krok 3: Sprawdź czy zasób istnieje
     if (!resourceExists(fullPath)) {
@@ -278,7 +292,6 @@ void Http::handleFile(const std::string& filePath) {
 }
 
 void Http::generateDirectoryListing(const std::string& dirPath) {
-    // ✅ Używamy opendir() i readdir() - dozwolone funkcje
     DIR* dir = opendir(dirPath.c_str());
     if (!dir) {
         sendError(500);

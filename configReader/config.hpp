@@ -7,6 +7,7 @@
 #include <map>
 
 struct LocationConfig {
+    std::string location_path;
     std::string client_max_body_size;
     std::map<int, std::string> error_pages;
     std::vector<std::string> allow_methods;
