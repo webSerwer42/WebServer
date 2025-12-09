@@ -5,6 +5,12 @@
 // Constructor
 Http::Http (std::string &rawRequest, ServerConfig serverData){
 
+    // Initialize primitive types
+    _rawRequestPtr = NULL;
+    _bodyStart = 0;
+    _bodyLen = 0;
+    
+
     //std::cout << "Debug: Entering Http constructor" << std::endl;
 
     _rawRequestPtr = &rawRequest;
@@ -13,6 +19,12 @@ Http::Http (std::string &rawRequest, ServerConfig serverData){
     // Get location-specific configuration
     requestBilder(rawRequest);
     _myConfig = getMyConfig();
+    
+    // Debug - sprawdź wartości po getMyConfig()
+    std::cout << YELLOW << "DEBUG _myConfig.has_redirect: " << _myConfig.has_redirect << RESET << std::endl;
+    std::cout << YELLOW << "DEBUG _myConfig.redirect_url: '" << _myConfig.redirect_url << "'" << RESET << std::endl;
+    std::cout << YELLOW << "DEBUG _myConfig.redirect_code: " << _myConfig.redirect_code << RESET << std::endl;
+    
     // Initialize HttpError with server or location-specific error pages
     _httpError = HttpError(_myConfig.error_pages);
 
@@ -483,6 +495,22 @@ void Http::responseBuilder() {
 LocationConfig Http::getMyConfig() {
     // Znajdź odpowiednią lokację dla ścieżki
     LocationConfig myConfig;
+    
+    // Wyzeruj wszystkie wartości
+    myConfig.location_path = "";
+    myConfig.root = "";
+    myConfig.index = "";
+    myConfig.autoindex = false;
+    myConfig.client_max_body_size = "";
+    myConfig.upload_dir = "";
+    myConfig.cgi_path = "";
+    myConfig.cgi_ext = "";
+    myConfig.has_redirect = false;
+    myConfig.redirect_url = "";
+    myConfig.redirect_code = 0;
+    myConfig.allow_methods.clear();
+    myConfig.error_pages.clear();
+    
     bool locationFound = false;
     
     for (std::map<std::string, LocationConfig>::iterator it = _serverData.locations.begin();

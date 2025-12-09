@@ -20,6 +20,7 @@ struct LocationConfig {
     bool has_redirect;           // Czy lokacja ma redirect
     int redirect_code;           // 301, 302, 303, 307, 308
     std::string redirect_url;    // Docelowy URL
+    LocationConfig() {};
 };
 
 struct ServerConfig {
@@ -40,6 +41,7 @@ struct ServerConfig {
     int redirect_code;           // 301, 302, 303, 307, 308
     std::string redirect_url;    // Docelowy URL
     std::map<std::string, LocationConfig> locations;
+    ServerConfig() {};
 };
 
 class Config {
