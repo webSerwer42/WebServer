@@ -1,33 +1,6 @@
 // Copyright [2025] <Piotr Ruszkiewicz> <pruszkie@student.42warsaw.pl>
 
 #include "CoreEngine.hpp"
-#include "../http/Http.hpp"
-#include "../errors/error.hpp"
-
-// void CoreEngine::closeClientConnection(size_t el)
-// {
-//    close(pollFDs[el].fd);
-
-//    // Wyczyść mapowanie dla tego klienta
-//    clientToServer.erase(el);
-
-//    // Przesuń elementy w pollFDs i zaktualizuj indeksy w mapowaniach
-//    for (size_t i = el; i < pollFDsNum - 1; i++)
-//    {
-//       pollFDs[i] = pollFDs[i + 1];
-
-//       // Zaktualizuj mapowania (indeksy się przesunęły!)
-//       if (clientToServer.find(i + 1) != clientToServer.end())
-//       {
-//          clientToServer[i] = clientToServer[i + 1];
-//          clientToServer.erase(i + 1);
-//       }
-//    }
-
-//    // Zmniejsz rozmiar tablicy pollFDs
-//    pollFDs = (pollfd *)realloc(pollFDs, (pollFDsNum - 1) * sizeof(pollfd));
-//    pollFDsNum--;
-// }
 
 void CoreEngine::setConnection(size_t i)
 {
@@ -44,9 +17,12 @@ void CoreEngine::setConnection(size_t i)
       std::cerr << "accept() failed: " << strerror(errno) << std::endl;
       exit(1);
    }
-   pollFDs = (pollfd *)realloc(pollFDs, (pollFDsNum + 1) * sizeof(pollfd));
-   pollFDs[pollFDsNum].fd = client.FD;
-   pollFDs[pollFDsNum].revents = 0;
+   pollfd pfd;
+
+   // pollFDs = (pollfd *)realloc(pollFDs, (pollFDsNum + 1) * sizeof(pollfd));
+   pfd.fd = client.FD;
+   pfd.revents = 0;
+   pollFDs.push_back(pfd);
 
    isClientFD[pollFDsNum] = true;
    // clientToServer[pollFDsNum] = serverFDtoIndex[pollFDs[i].fd]; // zapisz który serwer przyjął połączenie
@@ -62,17 +38,15 @@ void CoreEngine::recivNClose(size_t el)
    client &client = this->getClientByFD(pollFDs[el].fd);
    HttpError errorHandler;
    client.byteRecived = recv(pollFDs[el].fd, client.inputBuffer, 1024, 0);
-   client.inputBuffer[client.byteRecived] = '\0';
-   if (client.byteRecived == -1)
+   if (client.byteRecived >= 0)
+      client.inputBuffer[client.byteRecived] = '\0';
+   if (client.byteRecived < 0)
    {
-      // Wyślij 500 Internal Server Error
-      if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)
-         return; 
       std::cerr << "recv() failed: " << strerror(errno) << std::endl;
       std::string errorResponse = errorHandler.generateErrorResponse(500);
       client.hasError = true;
-      pollFDs[el].events = POLLOUT;
-      client.sendBuffer = errorResponse;
+      client.requestBufferVec.push_back(errorResponse);
+      client.sendBuffer = prepareResponse(client, el, 0);
       return;
    }
    // this is closing socket logic, when send EOF by client EOF
@@ -86,10 +60,10 @@ void CoreEngine::recivNClose(size_t el)
       {
          std::cout << "Empty or invalid HTTP request detected!" << std::endl;
          std::string errorResponse = errorHandler.generateErrorResponse(400,
-            "The request is empty or does not contain valid HTTP headers.");
+                                                                        "The request is empty or does not contain valid HTTP headers.");
          client.hasError = true;
-         pollFDs[el].events = POLLOUT;
-         client.sendBuffer = errorResponse;
+         client.requestBufferVec.push_back(errorResponse);
+         client.sendBuffer = prepareResponse(client, el, 0);
          return;
       }
       // czy buffer jest za mały (413)
@@ -97,41 +71,86 @@ void CoreEngine::recivNClose(size_t el)
       {
          std::cout << "Request too large! Buffer full." << std::endl;
          std::string errorResponse = errorHandler.generateErrorResponse(413,
-            "The request payload exceeds the maximum buffer size of 1024 bytes.");
+                                                                        "The request payload exceeds the maximum buffer size of 1024 bytes.");
          client.hasError = true;
-         pollFDs[el].events = POLLOUT;
-         client.sendBuffer = errorResponse;
+         client.requestBufferVec.push_back(errorResponse);
+         client.sendBuffer = prepareResponse(client, el, 0);
          return;
       }
       // collecting chunks of recived data
       std::string temp(client.inputBuffer);
-      client.requestBuffer += temp;
-      size_t index = client.requestBuffer.find("\r\n\r\n");
-      if(index != std::string::npos)
-         pollFDs[el].events = POLLOUT;
+      client.leftooverBuffer += temp;
+      temp = client.leftooverBuffer;
+      size_t begin = 0;
+
+      while (true)
+      {
+         // find end of headers
+         size_t end = temp.find("\r\n\r\n", begin);
+         if (end == std::string::npos)
+         {
+            client.leftooverBuffer = temp.substr(begin);
+            break;
+         }
+
+         // extract headers
+         std::string headers = temp.substr(begin, end - begin + 4);
+
+         // check Content-Length
+         size_t contentLength = 0;
+         size_t clPos = headers.find("Content-Length:");
+         if (clPos != std::string::npos)
+         {
+            clPos += 15; // move past "Content-Length:"
+            size_t clEnd = headers.find("\r\n", clPos);
+            std::string clStr = headers.substr(clPos, clEnd - clPos);
+            contentLength = atoi(clStr.c_str());
+         }
+
+         // calculate full request length
+         size_t fullRequestLen = (end - begin + 4) + contentLength;
+
+         // check if full body is received
+         if (temp.size() - begin < fullRequestLen)
+         {
+            client.leftooverBuffer = temp.substr(begin);
+            break; // wait for next recv
+         }
+
+         // extract full request (headers + body)
+         std::string request = temp.substr(begin, fullRequestLen);
+         client.requestBufferVec.push_back(request);
+
+         // move begin to next request
+         begin += fullRequestLen;
+      }
+
+      // If we got at least one full request, generate responses
+      if (!client.requestBufferVec.empty())
+      {
+         std::string response;
+         for (size_t i = 0; i < client.requestBufferVec.size(); i++)
+         {
+            response = prepareResponse(client, el, i);
+            client.sendBuffer += response;
+         }
+         client.requestBufferVec.clear();
+      }
    }
 }
 
 void CoreEngine::sendToClient(size_t el)
 {
    client &client = this->getClientByFD(pollFDs[el].fd);
-   std::cout << "--->this is request buffer: " << client.requestBuffer << std::endl;
+   std::cout << "actual client: " << client.FD << std::endl;
+   std::cout << "send buffer: " << client.sendBuffer << std::endl;
    try
    {
-      //Http response(client.sendBuffer);
-
-      Http object(client.requestBuffer, client.serverCfg);
-      if (object.getIsError())
-         client.hasError = true;
       // Obsluga erroruw w Http class
-      // std::string responseStr to object.responseBuilder();
-      std::cout << "---> What is response: " << object.getResponse() << std::endl;
-      int byteSend = send(pollFDs[el].fd, object.getResponse().c_str() + client.sendOffset, 
-         object.getResponse().size() - client.sendOffset, 0); // check if string functions are ok
-      if (byteSend == -1)
+      int byteSend = send(pollFDs[el].fd, client.sendBuffer.c_str() + client.sendOffset,
+                          client.sendBuffer.size() - client.sendOffset, 0); // check if string functions are ok
+      if (byteSend <= 0)
       {
-         if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)
-            return; 
          std::cerr << "send() failed: " << strerror(errno) << std::endl;
          // Wyślij 500 Internal Server Error
          HttpError errorHandler;
@@ -139,7 +158,7 @@ void CoreEngine::sendToClient(size_t el)
          closeCLient(el);
          return;
       }
-      if((0 < byteSend) && (byteSend < (int)object.getResponse().size()))
+      if ((0 < byteSend) && (byteSend < (int)client.sendBuffer.size()))
       {
          client.sendOffset += byteSend;
          return;
@@ -157,49 +176,13 @@ void CoreEngine::sendToClient(size_t el)
       std::cerr << "Exception in sendToClient: " << e.what() << std::endl;
       HttpError errorHandler;
       std::string errorResponse = errorHandler.generateErrorResponse(500,
-         "An internal error occurred while processing your request.");
+                                                                     "An internal error occurred while processing your request.");
       client.hasError = true;
       client.sendBuffer = errorResponse;
       return;
    }
+   client.sendBuffer.clear();
+   client.sendOffset = 0;
    pollFDs[el].events = POLLIN;
    // std::cout << "client: " << pollFDs[el].fd << " ready to send" << std::endl;
 }
-
-// void CoreEngine::sendToClient(size_t el)
-// {
-
-// try
-// {
-//    std::string requestStr(buffer);
-//    size_t serverIndex = clientToServer[el]; // pobierz indeks serwera dla tego klienta
-
-//    Http response(requestStr, serversCfg[serverIndex]); // użyj odpowiedniej konfiguracji serwera
-//       std::string responseStr = response.responseBuilder();
-//       int byteSend = send(pollFDs[el].fd, responseStr.c_str(), responseStr.size(), 0); // check if string functions are ok
-
-//       if (byteSend == -1)
-//       {
-//          std::cerr << "send() failed: " << strerror(errno) << std::endl;
-//          // Wyślij 500 Internal Server Error
-//          // HttpError errorHandler;
-//          // std::string errorResponse = errorHandler.generateErrorResponse(500);
-//          // send(pollFDs[el].fd, errorResponse.c_str(), errorResponse.size(), 0);
-//          return;
-//       }
-//    std::string str = "Packet send sukcesfully!\n";
-// }
-
-// catch (const std::exception& e)
-// {
-//    // Jeśli cokolwiek pójdzie nie tak podczas parsowania lub generowania response
-//    std::cerr << "Exception in sendToClient: " << e.what() << std::endl;
-
-//    // HttpError errorHandler;
-//    // std::string errorResponse = errorHandler.generateErrorResponse(500,
-//    // "An internal error occurred while processing your request.");
-//    // send(pollFDs[el].fd, errorResponse.c_str(), errorResponse.size(), 0);
-// }
-//    pollFDs[el].events = POLLIN;
-//    // std::cout << "client: " << pollFDs[el].fd << " ready to send" << std::endl;
-// }

@@ -16,6 +16,9 @@ struct LocationConfig {
     std::string cgi_path;
     std::string cgi_ext;
     std::string root;
+    bool has_redirect;           // Czy lokacja ma redirect
+    int redirect_code;           // 301, 302, 303, 307, 308
+    std::string redirect_url;    // Docelowy URL
 };
 
 struct ServerConfig {
@@ -32,6 +35,9 @@ struct ServerConfig {
     std::string cgi_path;
     std::string cgi_ext;
     std::string root;
+    bool has_redirect;           // Czy lokacja ma redirect
+    int redirect_code;           // 301, 302, 303, 307, 308
+    std::string redirect_url;    // Docelowy URL
     std::map<std::string, LocationConfig> locations;
 };
 

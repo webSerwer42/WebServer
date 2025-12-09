@@ -1,9 +1,9 @@
 #include "CoreEngine.hpp"
 
-CoreEngine::client& CoreEngine::getClientByFD(int socketFD)
+CoreEngine::client &CoreEngine::getClientByFD(int socketFD)
 {
-    for(size_t i = 0; i < this->clientVec.size(); i++)
-        if(clientVec[i].FD == socketFD)
+    for (size_t i = 0; i < this->clientVec.size(); i++)
+        if (clientVec[i].FD == socketFD)
             return clientVec[i];
     std::stringstream ss;
     ss << "Client not found for socket FD: " << socketFD;
@@ -12,14 +12,24 @@ CoreEngine::client& CoreEngine::getClientByFD(int socketFD)
 
 void CoreEngine::closeCLient(int el)
 {
-    close(pollFDs[el].fd);
-      for (int i = el; i < (int)pollFDsNum; i++)
-      {
-         if (el == ((int)pollFDsNum - 1))
+    for (size_t i = 0; i < clientVec.size(); i++)
+        if (clientVec[i].FD == pollFDs[el].fd)
+        {
+            clientVec.erase(clientVec.begin() + i);
             break;
-         pollFDs[i] = pollFDs[i + 1];
-      }
-      // shirinking pollfd
-      pollFDs = (pollfd *)realloc(pollFDs, (pollFDsNum - 1) * sizeof(pollfd));
-      pollFDsNum--;
+        }
+    close(pollFDs[el].fd);
+    pollFDs.erase(pollFDs.begin() + el);
+    pollFDsNum--;
+}
+
+std::string CoreEngine::prepareResponse(client &client, size_t el, size_t res)
+{
+    std::cout << YELLOW << "-->This is request: " << client.requestBufferVec[res] << std::endl;
+    Http object(client.requestBufferVec[res], client.serverCfg);
+    if (object.getIsError())
+        client.hasError = true;
+    pollFDs[el].events = POLLOUT;
+    std::cout << ORANGE << "--> This is Response: " << object.getResponse().c_str()<< RESET << std::endl;
+    return object.getResponse();
 }

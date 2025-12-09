@@ -24,7 +24,7 @@ Makefile~
 *~
 
 # Ignore version control metadata
-.vscode/
+# .vscode/
 .idea/
 
 # Ignore test artifacts
@@ -33,7 +33,7 @@ test-results/
 *.gcno
 *.gcov
 # Ignore VSCode settings folder
-.vscode/
+# .vscode/
 
 # Ignore CodeQL artifacts
 _codeql_detected_source_root
