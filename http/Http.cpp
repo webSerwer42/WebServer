@@ -117,18 +117,78 @@ bool Http::isBodySizeAllowed() {
 
 // Build CGI response
 void Http::cgiResponseBuilder() {
-    // TODO: Implement
-
-    //temporary response
-    std::ostringstream html;
-    html << "HTTP/1.1 200 OK\r\n"
-         << "Content-Type: text/html\r\n"
-         << "Connection: close\r\n"
-         << "\r\n"
-         << "<h1>CGI Response</h1>\n"
-         << "<p>Path: " << _s_requestData._path << "</p>\n";
-    _s_responseData._response = html.str();
-    _s_responseData._responseStatusCode = 200;
+    // Usuń query string ze ścieżki
+    std::string cleanPath = _s_requestData._path;
+    size_t queryPos = cleanPath.find('?');
+    std::string queryString;
+    
+    if (queryPos != std::string::npos) {
+        queryString = cleanPath.substr(queryPos + 1);
+        cleanPath = cleanPath.substr(0, queryPos);
+    }
+    
+    // Usuń location_path z URI
+    std::string filePath = cleanPath;
+    if (!_myConfig.location_path.empty() && cleanPath.find(_myConfig.location_path) == 0) {
+        filePath = cleanPath.substr(_myConfig.location_path.length());
+    }
+    
+    // Zbuduj pełną ścieżkę do skryptu
+    std::string scriptPath = _myConfig.root + filePath;
+    
+    // Sprawdź czy skrypt istnieje
+    if (!resourceExists(scriptPath)) {
+        sendError(404);
+        return;
+    }
+    
+    // Pobierz body (dla POST)
+    std::string body;
+    if (_rawRequestPtr != NULL && _bodyLen > 0) {
+        body = _rawRequestPtr->substr(_bodyStart, _bodyLen);
+    }
+    
+    // Przygotuj zmienne środowiskowe
+    std::map<std::string, std::string> envVars;
+    
+    envVars["REQUEST_METHOD"] = _s_requestData._method;
+    envVars["SCRIPT_FILENAME"] = scriptPath;
+    envVars["QUERY_STRING"] = queryString;
+    envVars["SERVER_PROTOCOL"] = _s_requestData._httpVersion;
+    envVars["PATH_INFO"] = filePath;
+    envVars["SCRIPT_NAME"] = cleanPath;
+    
+    // Content-Length dla POST
+    if (!body.empty()) {
+        std::ostringstream oss;
+        oss << body.length();
+        envVars["CONTENT_LENGTH"] = oss.str();
+    }
+    
+    // Content-Type z headerów
+    std::map<std::string, std::string>::iterator it = 
+        _s_requestData._headers.find("Content-Type");
+    if (it != _s_requestData._headers.end()) {
+        envVars["CONTENT_TYPE"] = it->second;
+    }
+    
+    // Dodaj inne headery jako HTTP_*
+    for (std::map<std::string, std::string>::iterator it = _s_requestData._headers.begin();
+         it != _s_requestData._headers.end(); ++it) {
+        std::string key = "HTTP_" + it->first;
+        // Zamień '-' na '_' i uppercase
+        for (size_t i = 0; i < key.length(); ++i) {
+            if (key[i] == '-') key[i] = '_';
+            key[i] = std::toupper(key[i]);
+        }
+        envVars[key] = it->second;
+    }
+    
+    // Wykonaj CGI
+    std::string response = executeCgi(scriptPath, _myConfig.cgi_path, body, envVars);
+    
+    _s_responseData._response = response;
+    _s_responseData._responseStatusCode = 200;  
 }
 
 // Build GET response
@@ -401,44 +461,200 @@ void Http::handleDirectory(const std::string& dirPath, const std::string& urlPat
 }
 
 
-
 // Build POST response
 void Http::postResponseBuilder() {
-    // TODO: Implement
-
-    //temporary response
-    std::ostringstream html;
-    html << "HTTP/1.1 200 OK\r\n"
-         << "Content-Type: text/html\r\n"
-         << "Connection: close\r\n"
-         << "\r\n"
-         << "<h1>POST Method</h1>\n"
-         << "<p>Path: " << _s_requestData._path << "</p>\n";
-    _s_responseData._response = html.str();
-    _s_responseData._responseStatusCode = 200;
+    // Sprawdź czy mamy body
+    if (_rawRequestPtr == NULL || _bodyLen == 0) {
+        sendError(400); // Bad Request - brak danych
+        return;
+    }
+    
+    // Pobierz body
+    std::string body = _rawRequestPtr->substr(_bodyStart, _bodyLen);
+    
+    // Jeśli location ma upload_dir - zapisz jako plik
+    if (!_myConfig.upload_dir.empty()) {
+        // UPLOAD PLIKU
+        
+        // Wygeneruj unikalną nazwę
+        std::ostringstream oss;
+        oss << "upload_" << std::time(NULL) << ".bin";
+        std::string filename = oss.str();
+        
+        // Zbuduj pełną ścieżkę
+        std::string fullPath = _myConfig.upload_dir + "/" + filename;
+        
+        // Zapisz plik
+        int fd = open(fullPath.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0644);
+        if (fd == -1) {
+            sendError(500);
+            return;
+        }
+        
+        ssize_t bytesWritten = write(fd, body.c_str(), body.length());
+        close(fd);
+        
+        if (bytesWritten == -1 || static_cast<size_t>(bytesWritten) != body.length()) {
+            std::remove(fullPath.c_str());
+            sendError(500);
+            return;
+        }
+        
+        // Sukces - 201 Created
+        std::ostringstream response;
+        response << "HTTP/1.1 201 Created\r\n"
+                 << "Content-Type: text/html\r\n"
+                 << "Location: " << _myConfig.upload_dir << "/" << filename << "\r\n"
+                 << "Connection: close\r\n"
+                 << "\r\n"
+                 << "<html><body>"
+                 << "<h1>File Uploaded</h1>"
+                 << "<p>Filename: " << filename << "</p>"
+                 << "<p>Size: " << body.length() << " bytes</p>"
+                 << "</body></html>";
+        
+        _s_responseData._response = response.str();
+        _s_responseData._responseStatusCode = 201;
+        
+    } else {
+        // ZWYKŁY POST (bez uploadu)
+        
+        std::ostringstream response;
+        response << "HTTP/1.1 200 OK\r\n"
+                 << "Content-Type: text/html\r\n"
+                 << "Connection: close\r\n"
+                 << "\r\n"
+                 << "<html><body>"
+                 << "<h1>POST Data Received</h1>"
+                 << "<p>Content-Length: " << body.length() << " bytes</p>"
+                 << "<pre>" << body << "</pre>"
+                 << "</body></html>";
+        
+        _s_responseData._response = response.str();
+        _s_responseData._responseStatusCode = 200;
+    }
 }
 
 // Build DELETE response
 void Http::deleteResponseBuilder() {
-    // TODO: Implement
+    // Usuń query string
+    std::string cleanPath = _s_requestData._path;
+    size_t queryPos = cleanPath.find('?');
+    if (queryPos != std::string::npos) {
+        cleanPath = cleanPath.substr(0, queryPos);
+    }
+    
+    // Usuń location_path z URI
+    std::string filePath = cleanPath;
+    if (!_myConfig.location_path.empty() && cleanPath.find(_myConfig.location_path) == 0) {
+        filePath = cleanPath.substr(_myConfig.location_path.length());
+    }
+    
+    // Zbuduj pełną ścieżkę
+    std::string fullPath = _myConfig.root + filePath;
+    
+    // Sprawdź czy zasób istnieje
+    if (!resourceExists(fullPath)) {
+        sendError(404);
+        return;
+    }
+    
+    // Sprawdź typ zasobu
+    if (isDirectory(fullPath)) {
+        deleteDirectory(fullPath);
+    } else {
+        deleteFile(fullPath);
+    }
+}
 
-    //temporary response
-    std::ostringstream html;
+void Http::deleteFile(const std::string& filePath) {
+
+    // Sprawdź czy ścieżka zawiera ".."
+    if (filePath.find("..") != std::string::npos) {
+        sendError(403); // Path traversal
+        return;
+    }
     
-    html << "HTTP/1.1 200 OK\r\n"
-         << "Content-Type: text/html\r\n"
-         << "Connection: close\r\n"
-         << "\r\n"
-         << "<h1>DELETE Method</h1>\n"
-         << "<p>Path: " << _s_requestData._path << "</p>\n";
+    // Sprawdź czy plik jest w root
+    if (filePath.find(_myConfig.root) != 0) {
+        sendError(403); // Próba wyjścia poza root
+        return;
+    }
+
+    // Sprawdź uprawnienia do zapisu (access dozwolone)
+    if (access(filePath.c_str(), W_OK) != 0) {
+        sendError(403); // Forbidden
+        return;
+    }
     
-    _s_responseData._response = html.str();
-    _s_responseData._responseStatusCode = 200;
+    // Usuń plik (unlink dozwolone w C - możesz użyć przez std::remove)
+    if (std::remove(filePath.c_str()) != 0) {
+        // Błąd usuwania
+        sendError(500);
+        return;
+    }
+    
+    // Sukces - wyślij 204 No Content
+    std::ostringstream response;
+    response << "HTTP/1.1 204 No Content\r\n"
+             << "Connection: close\r\n"
+             << "\r\n";
+    
+    _s_responseData._response = response.str();
+    _s_responseData._responseStatusCode = 204;
+}
+
+void Http::deleteDirectory(const std::string& dirPath) {
+    // Sprawdź czy URL kończy się na '/'
+    std::string urlPath = _s_requestData._path;
+    if (urlPath[urlPath.length() - 1] != '/') {
+        sendError(409); // Conflict - wymagany trailing slash dla katalogów
+        return;
+    }
+    
+    // Sprawdź uprawnienia
+    if (access(dirPath.c_str(), W_OK) != 0) {
+        sendError(403);
+        return;
+    }
+    
+    // Spróbuj usunąć katalog (tylko pusty)
+    if (rmdir(dirPath.c_str()) != 0) {
+        if (errno == ENOTEMPTY || errno == EEXIST) {
+            sendError(409); // Conflict - katalog nie jest pusty
+        } else {
+            sendError(500);
+        }
+        return;
+    }
+    
+    // Sukces
+    std::ostringstream response;
+    response << "HTTP/1.1 204 No Content\r\n"
+             << "Connection: close\r\n"
+             << "\r\n";
+    
+    _s_responseData._response = response.str();
+    _s_responseData._responseStatusCode = 204;
 }
 
 bool Http::isCGI() {
-// TODO: Implement
-    return false;
+    // Sprawdź czy CGI jest skonfigurowane
+    if (_myConfig.cgi_ext.empty() || _myConfig.cgi_path.empty()) {
+        return false;
+    }
+    
+    // Pobierz rozszerzenie z path
+    size_t dotPos = _s_requestData._path.rfind('.');
+    if (dotPos == std::string::npos) {
+        return false;
+    }
+    
+    std::string extension = _s_requestData._path.substr(dotPos);
+    
+    // Sprawdź czy rozszerzenie pasuje
+    // UWAGA: _myConfig.cgi_ext to string, nie vector!
+    return (extension == _myConfig.cgi_ext);
 }
 
 bool Http::isMethodAllowed() {

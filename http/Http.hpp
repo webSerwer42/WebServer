@@ -11,8 +11,12 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <dirent.h>
+#include <ctime>
+#include <cstdio> // For remove
+#include <cerrno> // For errno
 #include "../configReader/config.hpp"
 #include "../errors/error.hpp"
+#include "../cgi/cgi.hpp"
 
 #define RESET       "\033[0m"
 #define BLACK       "\033[30m"
@@ -110,6 +114,9 @@ class Http {
         void handleFile(const std::string& filePath);
         std::string determineMimeType(const std::string& path);
         void generateDirectoryListing(const std::string& dirPath);
+        void deleteFile(const std::string& filePath);
+        void deleteDirectory(const std::string& dirPath);
+
 
 
         void cgiResponseBuilder();
