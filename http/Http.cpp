@@ -5,19 +5,33 @@
 // Constructor
 Http::Http (std::string &rawRequest, ServerConfig serverData){
 
-    std::cout << "Debug: Entering Http constructor" << std::endl;
+    // Initialize primitive types
+    _rawRequestPtr = NULL;
+    _bodyStart = 0;
+    _bodyLen = 0;
+    
+
+    //std::cout << "Debug: Entering Http constructor" << std::endl;
 
     _rawRequestPtr = &rawRequest;
     _serverData = serverData;
 
     // Get location-specific configuration
+    requestBilder(rawRequest);
     _myConfig = getMyConfig();
+    
+    // Debug - sprawdź wartości po getMyConfig()
+    std::cout << YELLOW << "DEBUG _myConfig.has_redirect: " << _myConfig.has_redirect << RESET << std::endl;
+    std::cout << YELLOW << "DEBUG _myConfig.redirect_url: '" << _myConfig.redirect_url << "'" << RESET << std::endl;
+    std::cout << YELLOW << "DEBUG _myConfig.redirect_code: " << _myConfig.redirect_code << RESET << std::endl;
+    
     // Initialize HttpError with server or location-specific error pages
     _httpError = HttpError(_myConfig.error_pages);
 
-    requestBilder(rawRequest);
     responseBuilder();
     //testResponseBuilder();
+    std::cout << GREEN << "Debug: Exiting Http constructor" << std::endl;
+    std::cout << _s_responseData._response << RESET << std::endl;
 }
 
 void Http::requestBilder(std::string &rawRequest) {
@@ -36,13 +50,13 @@ void Http::parseRequest(std::string &rawRequest) {
         _bodyLen = rawRequest.length() - (headerEnd + 4);
     } else {
         _s_requestData._rawHeader = rawRequest;
-        // // Debug output
-        // std::cout << "=== NO \\r\\n\\r\\n FOUND, RAW HEADER ===\n"
-        //             << _s_requestData._rawHeader
-        //             << "\n=== END ===" << std::endl;
-        // std::cout << "=== RAW REQUEST ===\n" 
-        //             << rawRequest
-        //             << "\n=== END RAW REQUEST ===" << std::endl;
+        // Debug output
+        std::cout << RED << "=== NO \\r\\n\\r\\n FOUND, RAW HEADER ===\n"
+                    << _s_requestData._rawHeader
+                    << "\n=== END ===" << std::endl;
+        std::cout << "=== RAW REQUEST ===\n" 
+                    << rawRequest
+                    << "\n=== END RAW REQUEST ===" << RESET << std::endl;
         _rawRequestPtr = NULL;
         _bodyStart = 0;
         _bodyLen = 0;
@@ -119,7 +133,7 @@ void Http::cgiResponseBuilder() {
 
 // Build GET response
 void Http::getResponseBuilder() {
-// ✅ NAJPIERW sprawdź redirect z configu
+// NAJPIERW sprawdź redirect z configu
     if (_myConfig.has_redirect) {
         sendRedirect(_myConfig.redirect_url, _myConfig.redirect_code);
         return;
@@ -133,13 +147,29 @@ void Http::getResponseBuilder() {
     }
     
 // Krok 1: Obsługa głównej ścieżki "/"
+    cleanPath = cleanPath.empty() ? "/" : cleanPath;
+    // Zła obsługa Route miesza rout z katalogami serwera.
     if (cleanPath == "/") {
         handleRootPath();
         return;
     }
     
     // Krok 2: Zbuduj pełną ścieżkę
-    std::string fullPath = _myConfig.root + cleanPath;
+    // Usuwa location_path z URI, żeby zostać z rzeczywistą ścieżką pliku
+    std::string test1 = _myConfig.location_path;
+    std::string filePath = cleanPath;
+    if (!_myConfig.location_path.empty() && cleanPath.find(_myConfig.location_path) == 0) {
+        // Usuń location_path z początku
+        filePath = cleanPath.substr(_myConfig.location_path.length());
+    }
+
+    // Jeśli filePath jest pusta lub to tylko "/", obsłuż jako root lokacji
+    if (filePath.empty() || filePath == "/") {
+        handleRootPath();
+        return;
+    }
+
+    std::string fullPath = _myConfig.root + filePath;
     
     // Krok 3: Sprawdź czy zasób istnieje
     if (!resourceExists(fullPath)) {
@@ -274,7 +304,6 @@ void Http::handleFile(const std::string& filePath) {
 }
 
 void Http::generateDirectoryListing(const std::string& dirPath) {
-    // ✅ Używamy opendir() i readdir() - dozwolone funkcje
     DIR* dir = opendir(dirPath.c_str());
     if (!dir) {
         sendError(500);
@@ -466,6 +495,22 @@ void Http::responseBuilder() {
 LocationConfig Http::getMyConfig() {
     // Znajdź odpowiednią lokację dla ścieżki
     LocationConfig myConfig;
+    
+    // Wyzeruj wszystkie wartości
+    myConfig.location_path = "";
+    myConfig.root = "";
+    myConfig.index = "";
+    myConfig.autoindex = false;
+    myConfig.client_max_body_size = "";
+    myConfig.upload_dir = "";
+    myConfig.cgi_path = "";
+    myConfig.cgi_ext = "";
+    myConfig.has_redirect = false;
+    myConfig.redirect_url = "";
+    myConfig.redirect_code = 0;
+    myConfig.allow_methods.clear();
+    myConfig.error_pages.clear();
+    
     bool locationFound = false;
     
     for (std::map<std::string, LocationConfig>::iterator it = _serverData.locations.begin();
