@@ -8,11 +8,11 @@
 TO DO LIST:  
 - [x] Error handling in main loop (exceptions)
 - [x] Add max body size validation (socket layer)
-- [ ] CGI
-- [ ] HTTP response builder
+- [x] CGI
+- [x] HTTP response builder
 - [ ] HTTP pages + .py script
-- [ ] High-level logic (router)
-- [ ] Closing sockets
+- [x] High-level logic (router)
+- [x] Closing sockets
 - [ ] Unit tests
 - [ ] Documentation comments
 - [ ] README files for each module
