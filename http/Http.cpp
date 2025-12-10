@@ -401,21 +401,78 @@ void Http::handleDirectory(const std::string& dirPath, const std::string& urlPat
 }
 
 
-
 // Build POST response
 void Http::postResponseBuilder() {
-    // TODO: Implement
-
-    //temporary response
-    std::ostringstream html;
-    html << "HTTP/1.1 200 OK\r\n"
-         << "Content-Type: text/html\r\n"
-         << "Connection: close\r\n"
-         << "\r\n"
-         << "<h1>POST Method</h1>\n"
-         << "<p>Path: " << _s_requestData._path << "</p>\n";
-    _s_responseData._response = html.str();
-    _s_responseData._responseStatusCode = 200;
+    // Sprawdź czy mamy body
+    if (_rawRequestPtr == NULL || _bodyLen == 0) {
+        sendError(400); // Bad Request - brak danych
+        return;
+    }
+    
+    // Pobierz body
+    std::string body = _rawRequestPtr->substr(_bodyStart, _bodyLen);
+    
+    // Jeśli location ma upload_dir - zapisz jako plik
+    if (!_myConfig.upload_dir.empty()) {
+        // UPLOAD PLIKU
+        
+        // Wygeneruj unikalną nazwę
+        std::ostringstream oss;
+        oss << "upload_" << std::time(NULL) << ".bin";
+        std::string filename = oss.str();
+        
+        // Zbuduj pełną ścieżkę
+        std::string fullPath = _myConfig.upload_dir + "/" + filename;
+        
+        // Zapisz plik
+        int fd = open(fullPath.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0644);
+        if (fd == -1) {
+            sendError(500);
+            return;
+        }
+        
+        ssize_t bytesWritten = write(fd, body.c_str(), body.length());
+        close(fd);
+        
+        if (bytesWritten == -1 || static_cast<size_t>(bytesWritten) != body.length()) {
+            std::remove(fullPath.c_str());
+            sendError(500);
+            return;
+        }
+        
+        // Sukces - 201 Created
+        std::ostringstream response;
+        response << "HTTP/1.1 201 Created\r\n"
+                 << "Content-Type: text/html\r\n"
+                 << "Location: " << _myConfig.upload_dir << "/" << filename << "\r\n"
+                 << "Connection: close\r\n"
+                 << "\r\n"
+                 << "<html><body>"
+                 << "<h1>File Uploaded</h1>"
+                 << "<p>Filename: " << filename << "</p>"
+                 << "<p>Size: " << body.length() << " bytes</p>"
+                 << "</body></html>";
+        
+        _s_responseData._response = response.str();
+        _s_responseData._responseStatusCode = 201;
+        
+    } else {
+        // ZWYKŁY POST (bez uploadu)
+        
+        std::ostringstream response;
+        response << "HTTP/1.1 200 OK\r\n"
+                 << "Content-Type: text/html\r\n"
+                 << "Connection: close\r\n"
+                 << "\r\n"
+                 << "<html><body>"
+                 << "<h1>POST Data Received</h1>"
+                 << "<p>Content-Length: " << body.length() << " bytes</p>"
+                 << "<pre>" << body << "</pre>"
+                 << "</body></html>";
+        
+        _s_responseData._response = response.str();
+        _s_responseData._responseStatusCode = 200;
+    }
 }
 
 // Build DELETE response
@@ -451,11 +508,15 @@ void Http::deleteResponseBuilder() {
 }
 
 void Http::deleteFile(const std::string& filePath) {
-    //prawdź czy ścieżka nie wychodzi poza root
-    std::string realRoot = realpath(_myConfig.root.c_str(), NULL);
-    std::string realFile = realpath(filePath.c_str(), NULL);
+
+    // Sprawdź czy ścieżka zawiera ".."
+    if (filePath.find("..") != std::string::npos) {
+        sendError(403); // Path traversal
+        return;
+    }
     
-    if (realFile.find(realRoot) != 0) {
+    // Sprawdź czy plik jest w root
+    if (filePath.find(_myConfig.root) != 0) {
         sendError(403); // Próba wyjścia poza root
         return;
     }
