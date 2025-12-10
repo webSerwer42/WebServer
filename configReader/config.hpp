@@ -41,11 +41,7 @@ struct ServerConfig {
     int redirect_code;           // 301, 302, 303, 307, 308
     std::string redirect_url;    // Docelowy URL
     std::map<std::string, LocationConfig> locations;
-<<<<<<< HEAD
-    ServerConfig() : has_redirect(false), redirect_code(0) {}
-=======
     ServerConfig() {};
->>>>>>> feature/http-request-parser
 };
 
 class Config {
