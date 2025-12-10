@@ -3,7 +3,7 @@
 <head>
 	<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
-	<title>Demo: /example (GET • POST • DELETE)</title>
+	<title>Demo: /test (GET • POST • DELETE)</title>
 		<style>
 			body { font-family: sans-serif; margin: 16px; }
 			header { margin-bottom: 12px; }
@@ -19,7 +19,7 @@
 </head>
 <body>
 			<header>
-				<h1>/example — minimal demo</h1>
+				<h1>/test — minimal demo</h1>
 				<div class="muted">GET • POST (upload) • DELETE</div>
 			</header>
 	<main>
@@ -28,7 +28,7 @@
 				<section class="card" id="get-card">
 					<h2>GET</h2>
 					<div class="row">
-						<input id="get-url" type="text" value="/example/data.txt" placeholder="/example/data.txt" />
+						<input id="get-url" type="text" value="/test/data.txt" placeholder="/test/data.txt" />
 						<button class="btn" id="btn-get">GET</button>
 					</div>
 					<div id="get-resp" class="response" hidden></div>
@@ -49,7 +49,7 @@
 				<section class="card" id="delete-card">
 					<h2>DELETE</h2>
 					<div class="row">
-						<input id="del-url" type="text" value="/example/uploads/testfile.txt" placeholder="/example/uploads/name.txt" />
+						<input id="del-url" type="text" value="/test/testfile.txt" placeholder="/test/testfile.txt" />
 						<button class="btn danger" id="btn-del">DELETE</button>
 					</div>
 					<div id="del-resp" class="response" hidden></div>
@@ -80,8 +80,8 @@
 		document.getElementById('btn-get').addEventListener('click', async () => {
 			const url = (document.getElementById('get-url').value || '').trim();
 			const respBox = document.getElementById('get-resp');
-					if (!url.startsWith('/example')) {
-						return showResp(respBox, false, 'Path must start with /example');
+					if (!url.startsWith('/test')) {
+						return showResp(respBox, false, 'Path must start with /test');
 			}
 			try {
 				const res = await fetch(url, { method: 'GET' });
@@ -103,7 +103,7 @@
 			// Nazwa pola: 'file' — typowe dla uploadów; serwer powinien przyjąć multipart/form-data.
 			form.append('file', fileInput.files[0]);
 			try {
-				const res = await fetch('/example', { method: 'POST', body: form });
+				const res = await fetch('/test', { method: 'POST', body: form });
 				const body = await res.text();
 				showResp(respBox, res.ok, `Status: ${res.status} ${res.statusText}\n\n${body}`);
 			} catch (e) {
@@ -117,7 +117,7 @@
 			const form = new FormData();
 			form.append('note', new Blob([`Demo upload ${new Date().toISOString()}`], { type: 'text/plain' }), 'note.txt');
 			try {
-				const res = await fetch('/example', { method: 'POST', body: form });
+				const res = await fetch('/test', { method: 'POST', body: form });
 				const body = await res.text();
 				showResp(respBox, res.ok, `Status: ${res.status} ${res.statusText}\n\n${body}`);
 			} catch (e) {
@@ -129,8 +129,8 @@
 		document.getElementById('btn-del').addEventListener('click', async () => {
 			const url = (document.getElementById('del-url').value || '').trim();
 			const respBox = document.getElementById('del-resp');
-					if (!url.startsWith('/example')) {
-						return showResp(respBox, false, 'Use a path under /example ...');
+					if (!url.startsWith('/test')) {
+						return showResp(respBox, false, 'Use a path under /test ...');
 			}
 					if (!confirm(`Delete file: ${url}?`)) return;
 			try {

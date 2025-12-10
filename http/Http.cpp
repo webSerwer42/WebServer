@@ -16,8 +16,10 @@ Http::Http (std::string &rawRequest, ServerConfig serverData){
     _rawRequestPtr = &rawRequest;
     _serverData = serverData;
 
+
     // Get location-specific configuration
     requestBilder(rawRequest);
+    // _myConfig = 0;
     _myConfig = getMyConfig();
     
     // Debug - sprawdź wartości po getMyConfig()
