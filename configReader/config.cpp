@@ -149,6 +149,7 @@ void Config::parseLines(std::ifstream& file) {
             if (inLocation)
                 currentServer.locations[currentLocationPath] = currentLocation;
             iss >> currentLocationPath;
+            currentServer.locations[currentLocationPath].location_path = currentLocationPath;
             currentLocation = LocationConfig();
             inLocation = true;
         }

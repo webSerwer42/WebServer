@@ -33,8 +33,7 @@ class Http {
         size_t _bodyStart;
         size_t _bodyLen;
         HttpError _httpError;
-        LocationConfig _myConfig;
-
+        
         struct requestData {
             long long _contentLength;
             std::string _Root;
@@ -50,17 +49,44 @@ class Http {
             std::string _httpVersion;
             std::string _method;
             std::map<std::string, std::string> _headers;
-        } _s_requestData;
+            requestData() : 
+                _contentLength(0),
+                _Root(""),
+                _Index(""),
+                _Redirect(""),
+                _CgiPath(""),
+                _CgiExt(""),
+                _UploadDir(""),
+                Autoindex(false),
+                _allowedMethods(),
+                _rawHeader(""),
+                _path(""),
+                _httpVersion(""),
+                _method(""),
+                _headers()
+                {}
+            } _s_requestData;
             
-        struct responseData {
-            bool _hasError;
-            std::string _responseHttpVersion;
+            LocationConfig _myConfig;
+            struct responseData {
+                bool _hasError;
+                std::string _responseHttpVersion;
             std::map<std::string, std::string> _responseHeaders;
             long long _clientMaxBodySize;
             std::string _responseHeader;
             int _responseStatusCode;
             std::string _responseBody;
             std::string _response;
+            responseData() : 
+                _hasError(false),
+                _responseHttpVersion(""),
+                _responseHeaders()  ,
+                _clientMaxBodySize(0),
+                _responseHeader(""),
+                _responseStatusCode(0),
+                _responseBody(""),
+                _response("")
+            {}
         } _s_responseData;
 
         // Parses a raw HTTP request.
