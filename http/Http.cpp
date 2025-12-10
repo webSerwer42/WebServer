@@ -10,8 +10,10 @@ Http::Http (std::string &rawRequest, ServerConfig serverData){
     _rawRequestPtr = &rawRequest;
     _serverData = serverData;
 
+
     // Get location-specific configuration
     requestBilder(rawRequest);
+    // _myConfig = 0;
     _myConfig = getMyConfig();
     // Initialize HttpError with server or location-specific error pages
     _httpError = HttpError(_myConfig.error_pages);
