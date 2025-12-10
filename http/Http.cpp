@@ -420,20 +420,101 @@ void Http::postResponseBuilder() {
 
 // Build DELETE response
 void Http::deleteResponseBuilder() {
-    // TODO: Implement
+    // Usuń query string
+    std::string cleanPath = _s_requestData._path;
+    size_t queryPos = cleanPath.find('?');
+    if (queryPos != std::string::npos) {
+        cleanPath = cleanPath.substr(0, queryPos);
+    }
+    
+    // Usuń location_path z URI
+    std::string filePath = cleanPath;
+    if (!_myConfig.location_path.empty() && cleanPath.find(_myConfig.location_path) == 0) {
+        filePath = cleanPath.substr(_myConfig.location_path.length());
+    }
+    
+    // Zbuduj pełną ścieżkę
+    std::string fullPath = _myConfig.root + filePath;
+    
+    // Sprawdź czy zasób istnieje
+    if (!resourceExists(fullPath)) {
+        sendError(404);
+        return;
+    }
+    
+    // Sprawdź typ zasobu
+    if (isDirectory(fullPath)) {
+        deleteDirectory(fullPath);
+    } else {
+        deleteFile(fullPath);
+    }
+}
 
-    //temporary response
-    std::ostringstream html;
+void Http::deleteFile(const std::string& filePath) {
+    //prawdź czy ścieżka nie wychodzi poza root
+    std::string realRoot = realpath(_myConfig.root.c_str(), NULL);
+    std::string realFile = realpath(filePath.c_str(), NULL);
     
-    html << "HTTP/1.1 200 OK\r\n"
-         << "Content-Type: text/html\r\n"
-         << "Connection: close\r\n"
-         << "\r\n"
-         << "<h1>DELETE Method</h1>\n"
-         << "<p>Path: " << _s_requestData._path << "</p>\n";
+    if (realFile.find(realRoot) != 0) {
+        sendError(403); // Próba wyjścia poza root
+        return;
+    }
+
+    // Sprawdź uprawnienia do zapisu (access dozwolone)
+    if (access(filePath.c_str(), W_OK) != 0) {
+        sendError(403); // Forbidden
+        return;
+    }
     
-    _s_responseData._response = html.str();
-    _s_responseData._responseStatusCode = 200;
+    // Usuń plik (unlink dozwolone w C - możesz użyć przez std::remove)
+    if (std::remove(filePath.c_str()) != 0) {
+        // Błąd usuwania
+        sendError(500);
+        return;
+    }
+    
+    // Sukces - wyślij 204 No Content
+    std::ostringstream response;
+    response << "HTTP/1.1 204 No Content\r\n"
+             << "Connection: close\r\n"
+             << "\r\n";
+    
+    _s_responseData._response = response.str();
+    _s_responseData._responseStatusCode = 204;
+}
+
+void Http::deleteDirectory(const std::string& dirPath) {
+    // Sprawdź czy URL kończy się na '/'
+    std::string urlPath = _s_requestData._path;
+    if (urlPath[urlPath.length() - 1] != '/') {
+        sendError(409); // Conflict - wymagany trailing slash dla katalogów
+        return;
+    }
+    
+    // Sprawdź uprawnienia
+    if (access(dirPath.c_str(), W_OK) != 0) {
+        sendError(403);
+        return;
+    }
+    
+    // Spróbuj usunąć katalog (tylko pusty)
+    if (rmdir(dirPath.c_str()) != 0) {
+        if (errno == ENOTEMPTY || errno == EEXIST) {
+            sendError(409); // Conflict - katalog nie jest pusty
+        } else {
+            sendError(500);
+        }
+        return;
+    }
+    
+    // Sukces
+    std::ostringstream response;
+    response << "HTTP/1.1 204 No Content\r\n"
+             << "Connection: close\r\n"
+             << "\r\n";
+    
+    _s_responseData._response = response.str();
+    _s_responseData._responseStatusCode = 204;
 }
 
 bool Http::isCGI() {

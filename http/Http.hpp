@@ -11,6 +11,8 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <dirent.h>
+#include <cstdio> // For remove
+#include <cerrno> // For errno
 #include "../configReader/config.hpp"
 #include "../errors/error.hpp"
 
@@ -110,6 +112,8 @@ class Http {
         void handleFile(const std::string& filePath);
         std::string determineMimeType(const std::string& path);
         void generateDirectoryListing(const std::string& dirPath);
+        void deleteFile(const std::string& filePath);
+        void deleteDirectory(const std::string& dirPath);
 
 
         void cgiResponseBuilder();
