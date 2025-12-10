@@ -16,6 +16,7 @@
 #include <cerrno> // For errno
 #include "../configReader/config.hpp"
 #include "../errors/error.hpp"
+#include "../cgi/cgi.hpp"
 
 #define RESET       "\033[0m"
 #define BLACK       "\033[30m"

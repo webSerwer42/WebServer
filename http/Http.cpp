@@ -117,18 +117,78 @@ bool Http::isBodySizeAllowed() {
 
 // Build CGI response
 void Http::cgiResponseBuilder() {
-    // TODO: Implement
-
-    //temporary response
-    std::ostringstream html;
-    html << "HTTP/1.1 200 OK\r\n"
-         << "Content-Type: text/html\r\n"
-         << "Connection: close\r\n"
-         << "\r\n"
-         << "<h1>CGI Response</h1>\n"
-         << "<p>Path: " << _s_requestData._path << "</p>\n";
-    _s_responseData._response = html.str();
-    _s_responseData._responseStatusCode = 200;
+    // Usuń query string ze ścieżki
+    std::string cleanPath = _s_requestData._path;
+    size_t queryPos = cleanPath.find('?');
+    std::string queryString;
+    
+    if (queryPos != std::string::npos) {
+        queryString = cleanPath.substr(queryPos + 1);
+        cleanPath = cleanPath.substr(0, queryPos);
+    }
+    
+    // Usuń location_path z URI
+    std::string filePath = cleanPath;
+    if (!_myConfig.location_path.empty() && cleanPath.find(_myConfig.location_path) == 0) {
+        filePath = cleanPath.substr(_myConfig.location_path.length());
+    }
+    
+    // Zbuduj pełną ścieżkę do skryptu
+    std::string scriptPath = _myConfig.root + filePath;
+    
+    // Sprawdź czy skrypt istnieje
+    if (!resourceExists(scriptPath)) {
+        sendError(404);
+        return;
+    }
+    
+    // Pobierz body (dla POST)
+    std::string body;
+    if (_rawRequestPtr != NULL && _bodyLen > 0) {
+        body = _rawRequestPtr->substr(_bodyStart, _bodyLen);
+    }
+    
+    // Przygotuj zmienne środowiskowe
+    std::map<std::string, std::string> envVars;
+    
+    envVars["REQUEST_METHOD"] = _s_requestData._method;
+    envVars["SCRIPT_FILENAME"] = scriptPath;
+    envVars["QUERY_STRING"] = queryString;
+    envVars["SERVER_PROTOCOL"] = _s_requestData._httpVersion;
+    envVars["PATH_INFO"] = filePath;
+    envVars["SCRIPT_NAME"] = cleanPath;
+    
+    // Content-Length dla POST
+    if (!body.empty()) {
+        std::ostringstream oss;
+        oss << body.length();
+        envVars["CONTENT_LENGTH"] = oss.str();
+    }
+    
+    // Content-Type z headerów
+    std::map<std::string, std::string>::iterator it = 
+        _s_requestData._headers.find("Content-Type");
+    if (it != _s_requestData._headers.end()) {
+        envVars["CONTENT_TYPE"] = it->second;
+    }
+    
+    // Dodaj inne headery jako HTTP_*
+    for (std::map<std::string, std::string>::iterator it = _s_requestData._headers.begin();
+         it != _s_requestData._headers.end(); ++it) {
+        std::string key = "HTTP_" + it->first;
+        // Zamień '-' na '_' i uppercase
+        for (size_t i = 0; i < key.length(); ++i) {
+            if (key[i] == '-') key[i] = '_';
+            key[i] = std::toupper(key[i]);
+        }
+        envVars[key] = it->second;
+    }
+    
+    // Wykonaj CGI
+    std::string response = executeCgi(scriptPath, _myConfig.cgi_path, body, envVars);
+    
+    _s_responseData._response = response;
+    _s_responseData._responseStatusCode = 200;  
 }
 
 // Build GET response
@@ -579,8 +639,22 @@ void Http::deleteDirectory(const std::string& dirPath) {
 }
 
 bool Http::isCGI() {
-// TODO: Implement
-    return false;
+    // Sprawdź czy CGI jest skonfigurowane
+    if (_myConfig.cgi_ext.empty() || _myConfig.cgi_path.empty()) {
+        return false;
+    }
+    
+    // Pobierz rozszerzenie z path
+    size_t dotPos = _s_requestData._path.rfind('.');
+    if (dotPos == std::string::npos) {
+        return false;
+    }
+    
+    std::string extension = _s_requestData._path.substr(dotPos);
+    
+    // Sprawdź czy rozszerzenie pasuje
+    // UWAGA: _myConfig.cgi_ext to string, nie vector!
+    return (extension == _myConfig.cgi_ext);
 }
 
 bool Http::isMethodAllowed() {
