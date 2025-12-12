@@ -1,6 +1,22 @@
 #include "Http.hpp"
 #include "../errors/error.hpp"
-#include <cstdlib> // For std::atoi
+#include <cstdlib>
+#include <cctype>
+#include <sstream>
+#include <ctime>
+#include <fcntl.h>
+#include <unistd.h>
+
+struct MultipartFile {
+    std::string filename;
+    std::string data;
+};
+
+static bool extractBoundary(const std::string& contentType, std::string& boundaryOut);
+static bool parseMultipartFilePart(const std::string& body,
+                                   const std::string& boundary,
+                                   MultipartFile& out,
+                                   const std::string& fieldName);
 
 // Constructor
 Http::Http (std::string &rawRequest, ServerConfig serverData){
@@ -46,7 +62,6 @@ void Http::parseRequest(std::string &rawRequest) {
     size_t headerEnd = rawRequest.find("\r\n\r\n");
     if (headerEnd != std::string::npos) {
         _s_requestData._rawHeader = rawRequest.substr(0, headerEnd);
-        // Dla body - nie kopiuj, tylko zapisz pozycję_s_requestData.
         _rawRequestPtr = &rawRequest;
         _bodyStart = headerEnd + 4;
         _bodyLen = rawRequest.length() - (headerEnd + 4);
@@ -71,14 +86,12 @@ void Http::parseHeader() {
     std::istringstream stream(_s_requestData._rawHeader);
     std::string line;
 
-    // Parse request line
     if (std::getline(stream, line)) {
         std::istringstream lineStream(line);
         std::string method, path, version;
         
         lineStream >> method >> path >> version;
     
-        // Usuń \r na końcu version jeśli istnieje
         if (!version.empty() && version[version.length() - 1] == '\r') {
             version.erase(version.length() - 1);
         }
@@ -119,7 +132,6 @@ bool Http::isBodySizeAllowed() {
 
 // Build CGI response
 void Http::cgiResponseBuilder() {
-    // Usuń query string ze ścieżki
     std::string cleanPath = _s_requestData._path;
     size_t queryPos = cleanPath.find('?');
     std::string queryString;
@@ -129,28 +141,23 @@ void Http::cgiResponseBuilder() {
         cleanPath = cleanPath.substr(0, queryPos);
     }
     
-    // Usuń location_path z URI
     std::string filePath = cleanPath;
     if (!_myConfig.location_path.empty() && cleanPath.find(_myConfig.location_path) == 0) {
         filePath = cleanPath.substr(_myConfig.location_path.length());
     }
     
-    // Zbuduj pełną ścieżkę do skryptu
     std::string scriptPath = _myConfig.root + filePath;
     
-    // Sprawdź czy skrypt istnieje
     if (!resourceExists(scriptPath)) {
         sendError(404);
         return;
     }
     
-    // Pobierz body (dla POST)
     std::string body;
     if (_rawRequestPtr != NULL && _bodyLen > 0) {
         body = _rawRequestPtr->substr(_bodyStart, _bodyLen);
     }
     
-    // Przygotuj zmienne środowiskowe
     std::map<std::string, std::string> envVars;
     
     envVars["REQUEST_METHOD"] = _s_requestData._method;
@@ -160,25 +167,21 @@ void Http::cgiResponseBuilder() {
     envVars["PATH_INFO"] = filePath;
     envVars["SCRIPT_NAME"] = cleanPath;
     
-    // Content-Length dla POST
     if (!body.empty()) {
         std::ostringstream oss;
         oss << body.length();
         envVars["CONTENT_LENGTH"] = oss.str();
     }
     
-    // Content-Type z headerów
     std::map<std::string, std::string>::iterator it = 
         _s_requestData._headers.find("Content-Type");
     if (it != _s_requestData._headers.end()) {
         envVars["CONTENT_TYPE"] = it->second;
     }
     
-    // Dodaj inne headery jako HTTP_*
     for (std::map<std::string, std::string>::iterator it = _s_requestData._headers.begin();
          it != _s_requestData._headers.end(); ++it) {
         std::string key = "HTTP_" + it->first;
-        // Zamień '-' na '_' i uppercase
         for (size_t i = 0; i < key.length(); ++i) {
             if (key[i] == '-') key[i] = '_';
             key[i] = std::toupper(key[i]);
@@ -186,7 +189,6 @@ void Http::cgiResponseBuilder() {
         envVars[key] = it->second;
     }
     
-    // Wykonaj CGI
     std::string response = executeCgi(scriptPath, _myConfig.cgi_path, body, envVars);
     
     _s_responseData._response = response;
@@ -195,37 +197,29 @@ void Http::cgiResponseBuilder() {
 
 // Build GET response
 void Http::getResponseBuilder() {
-// NAJPIERW sprawdź redirect z configu
     if (_myConfig.has_redirect) {
         sendRedirect(_myConfig.redirect_url, _myConfig.redirect_code);
         return;
     }
 
-// Usuń query string ze ścieżki
     std::string cleanPath = _s_requestData._path;
     size_t queryPos = cleanPath.find('?');
     if (queryPos != std::string::npos) {
         cleanPath = cleanPath.substr(0, queryPos);
     }
     
-// Krok 1: Obsługa głównej ścieżki "/"
     cleanPath = cleanPath.empty() ? "/" : cleanPath;
-    // Zła obsługa Route miesza rout z katalogami serwera.
     if (cleanPath == "/") {
         handleRootPath();
         return;
     }
     
-    // Krok 2: Zbuduj pełną ścieżkę
-    // Usuwa location_path z URI, żeby zostać z rzeczywistą ścieżką pliku
     std::string test1 = _myConfig.location_path;
     std::string filePath = cleanPath;
     if (!_myConfig.location_path.empty() && cleanPath.find(_myConfig.location_path) == 0) {
-        // Usuń location_path z początku
         filePath = cleanPath.substr(_myConfig.location_path.length());
     }
 
-    // Jeśli filePath jest pusta lub to tylko "/", obsłuż jako root lokacji
     if (filePath.empty() || filePath == "/") {
         handleRootPath();
         return;
@@ -233,13 +227,11 @@ void Http::getResponseBuilder() {
 
     std::string fullPath = _myConfig.root + filePath;
     
-    // Krok 3: Sprawdź czy zasób istnieje
     if (!resourceExists(fullPath)) {
         sendError(404);
         return;
     }
     
-    // Krok 4: Sprawdź typ zasobu
     if (isDirectory(fullPath)) {
         handleDirectory(fullPath, cleanPath);
     } else {
@@ -248,7 +240,6 @@ void Http::getResponseBuilder() {
 }
 
 bool Http::isDirectory(const std::string& path) {
-    //stat() - dozwolona funkcja
     struct stat buffer;
     if (stat(path.c_str(), &buffer) != 0) {
         return false;
@@ -269,7 +260,6 @@ bool Http::resourceExists(const std::string& path) {
 }
 
 void Http::sendRedirect(const std::string& newLocation, int code) {
-    // Domyślnie 301 jeśli nie podano
     if (code == 0) {
         code = 301;
     }
@@ -352,7 +342,6 @@ void Http::handleFile(const std::string& filePath) {
     
     std::string mimeType = determineMimeType(filePath);
     
-    // Zbuduj odpowiedź
     std::ostringstream response;
     response << "HTTP/1.1 200 OK\r\n"
              << "Content-Type: " << mimeType << "\r\n"
@@ -376,7 +365,6 @@ void Http::generateDirectoryListing(const std::string& dirPath) {
     html << "<html>\n<head>\n<title>Index of " << _s_requestData._path << "</title>\n</head>\n"
          << "<body>\n<h1>Index of " << _s_requestData._path << "</h1>\n<hr>\n<ul>\n";
     
-    // Dodaj link do katalogu nadrzędnego
     if (_s_requestData._path != "/") {
         html << "<li><a href=\"..\">../</a></li>\n";
     }
@@ -385,14 +373,12 @@ void Http::generateDirectoryListing(const std::string& dirPath) {
     while ((entry = readdir(dir)) != NULL) {
         std::string name = entry->d_name;
         
-        // Pomiń . i ..
         if (name == "." || name == "..") {
             continue;
         }
         
         std::string fullPath = dirPath + "/" + name;
         
-        // Sprawdź czy to katalog
         if (isDirectory(fullPath)) {
             html << "<li><a href=\"" << name << "/\">" << name << "/</a></li>\n";
         } else {
@@ -400,7 +386,7 @@ void Http::generateDirectoryListing(const std::string& dirPath) {
         }
     }
     
-    closedir(dir); // ✅ closedir() - dozwolona funkcja
+    closedir(dir);
     
     html << "</ul>\n<hr>\n</body>\n</html>";
     
@@ -418,7 +404,6 @@ void Http::generateDirectoryListing(const std::string& dirPath) {
 }
 
 void Http::handleRootPath() {
-    // Jeśli jest skonfigurowany index
     if (!_myConfig.index.empty()) {
         std::string indexPath = _myConfig.root + "/" + _myConfig.index;
         
@@ -427,7 +412,6 @@ void Http::handleRootPath() {
             return;
         }
     }
-    // Brak index - sprawdź autoindex
     if (_myConfig.autoindex) {
         generateDirectoryListing(_myConfig.root);
     } else {
@@ -436,15 +420,11 @@ void Http::handleRootPath() {
 }
 
 void Http::handleDirectory(const std::string& dirPath, const std::string& urlPath) {
-    // Czy URL kończy się na '/'?
     if (urlPath[urlPath.length() - 1] != '/') {
-        // Jeśli nie, dodaj '/' na końcu
-        // przekieruj
         sendRedirect(urlPath + "/", 301);
         return;
     }
     
-    // Szukaj pliku index
     if (!_myConfig.index.empty()) {
         std::string indexPath = dirPath + "/" + _myConfig.index;
         
@@ -454,7 +434,6 @@ void Http::handleDirectory(const std::string& dirPath, const std::string& urlPat
         }
     }
     
-    // Nie ma index - sprawdź autoindex
     if (_myConfig.autoindex) {
         generateDirectoryListing(dirPath);
     } else {
@@ -465,103 +444,115 @@ void Http::handleDirectory(const std::string& dirPath, const std::string& urlPat
 
 // Build POST response
 void Http::postResponseBuilder() {
-    // Sprawdź czy mamy body
-    if (_rawRequestPtr == NULL || _bodyLen == 0) {
-        sendError(400); // Bad Request - brak danych
-        return;
-    }
-    
-    // Pobierz body
-    std::string body = _rawRequestPtr->substr(_bodyStart, _bodyLen);
-    
-    // Jeśli location ma upload_dir - zapisz jako plik
-    if (!_myConfig.upload_dir.empty()) {
-        // UPLOAD PLIKU
-        
-        // Wygeneruj unikalną nazwę
-        std::ostringstream oss;
-        oss << "upload_" << std::time(NULL) << ".bin";
-        std::string filename = oss.str();
-        
-        // Zbuduj pełną ścieżkę
-        std::string fullPath = _myConfig.upload_dir + "/" + filename;
-        
-        // Zapisz plik
-        int fd = open(fullPath.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0644);
-        if (fd == -1) {
-            sendError(500);
-            return;
-        }
-        
-        ssize_t bytesWritten = write(fd, body.c_str(), body.length());
-        close(fd);
-        
-        if (bytesWritten == -1 || static_cast<size_t>(bytesWritten) != body.length()) {
-            std::remove(fullPath.c_str());
-            sendError(500);
-            return;
-        }
-        
-        // Sukces - 201 Created
-        std::ostringstream response;
-        response << "HTTP/1.1 201 Created\r\n"
-                 << "Content-Type: text/html\r\n"
-                 << "Location: " << _myConfig.upload_dir << "/" << filename << "\r\n"
-                 << "Connection: close\r\n"
-                 << "\r\n"
-                 << "<html><body>"
-                 << "<h1>File Uploaded</h1>"
-                 << "<p>Filename: " << filename << "</p>"
-                 << "<p>Size: " << body.length() << " bytes</p>"
-                 << "</body></html>";
-        
-        _s_responseData._response = response.str();
-        _s_responseData._responseStatusCode = 201;
-        
-    } else {
-        // ZWYKŁY POST (bez uploadu)
-        
+    if (_rawRequestPtr == NULL) { sendError(400); return; }
+
+    std::string reqBody = _rawRequestPtr->substr(_bodyStart, _bodyLen);
+
+    if (_myConfig.upload_dir.empty()) {
+        std::ostringstream html;
+        html << "<html><body>"
+             << "<h1>POST Data Received</h1>"
+             << "<p>Content-Length: " << reqBody.size() << " bytes</p>"
+             << "<pre>" << reqBody << "</pre>"
+             << "</body></html>";
+        const std::string respBody = html.str();
+
         std::ostringstream response;
         response << "HTTP/1.1 200 OK\r\n"
                  << "Content-Type: text/html\r\n"
+                 << "Content-Length: " << respBody.size() << "\r\n"
                  << "Connection: close\r\n"
                  << "\r\n"
-                 << "<html><body>"
-                 << "<h1>POST Data Received</h1>"
-                 << "<p>Content-Length: " << body.length() << " bytes</p>"
-                 << "<pre>" << body << "</pre>"
-                 << "</body></html>";
-        
+                 << respBody;
+
         _s_responseData._response = response.str();
         _s_responseData._responseStatusCode = 200;
+        return;
     }
+
+    std::string contentType = "";
+    std::map<std::string, std::string>::iterator it = _s_requestData._headers.find("Content-Type");
+    if (it != _s_requestData._headers.end()) contentType = it->second;
+
+    std::string boundary;
+    if (contentType.find("multipart/form-data") == std::string::npos || !extractBoundary(contentType, boundary)) {
+        sendError(400);
+        return;
+    }
+
+    MultipartFile mf;
+
+    if (!parseMultipartFilePart(reqBody, boundary, mf, "file")) {
+        if (!parseMultipartFilePart(reqBody, boundary, mf, "")) {
+            sendError(400);
+            return;
+        }
+    }
+
+    std::string fullPath = _myConfig.upload_dir + "/" + mf.filename;
+
+    {
+        int probe = open(fullPath.c_str(), O_RDONLY);
+        if (probe != -1) {
+            close(probe);
+            std::ostringstream oss;
+            oss << _myConfig.upload_dir << "/" << std::time(NULL) << "_" << mf.filename;
+            fullPath = oss.str();
+        }
+    }
+
+    int fd = open(fullPath.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd == -1) { sendError(500); return; }
+
+    ssize_t written = write(fd, mf.data.data(), mf.data.size());
+    close(fd);
+
+    if (written == -1 || static_cast<size_t>(written) != mf.data.size()) {
+        std::remove(fullPath.c_str());
+        sendError(500);
+        return;
+    }
+
+    std::ostringstream html;
+    html << "<html><body>"
+         << "<h1>File Uploaded</h1>"
+         << "<p>Saved as: " << fullPath << "</p>"
+         << "<p>Bytes: " << mf.data.size() << "</p>"
+         << "</body></html>";
+    const std::string respBody = html.str();
+
+    std::ostringstream response;
+    response << "HTTP/1.1 201 Created\r\n"
+             << "Content-Type: text/html\r\n"
+             << "Content-Length: " << respBody.size() << "\r\n"
+             << "Connection: close\r\n"
+             << "\r\n"
+             << respBody;
+
+    _s_responseData._response = response.str();
+    _s_responseData._responseStatusCode = 201;
 }
 
 // Build DELETE response
 void Http::deleteResponseBuilder() {
-    // Usuń query string
     std::string cleanPath = _s_requestData._path;
     size_t queryPos = cleanPath.find('?');
     if (queryPos != std::string::npos) {
         cleanPath = cleanPath.substr(0, queryPos);
     }
     
-    // Usuń location_path z URI
     std::string filePath = cleanPath;
     if (!_myConfig.location_path.empty() && cleanPath.find(_myConfig.location_path) == 0) {
         filePath = cleanPath.substr(_myConfig.location_path.length());
     }
     
-    // Zbuduj pełną ścieżkę
     std::string fullPath = _myConfig.root + filePath;
     
-    // Sprawdź czy zasób istnieje
     if (!resourceExists(fullPath)) {
         sendError(404);
         return;
     }
     
-    // Sprawdź typ zasobu
     if (isDirectory(fullPath)) {
         deleteDirectory(fullPath);
     } else {
@@ -571,32 +562,26 @@ void Http::deleteResponseBuilder() {
 
 void Http::deleteFile(const std::string& filePath) {
 
-    // Sprawdź czy ścieżka zawiera ".."
     if (filePath.find("..") != std::string::npos) {
-        sendError(403); // Path traversal
+        sendError(403); 
         return;
     }
     
-    // Sprawdź czy plik jest w root
     if (filePath.find(_myConfig.root) != 0) {
-        sendError(403); // Próba wyjścia poza root
+        sendError(403); 
         return;
     }
 
-    // Sprawdź uprawnienia do zapisu (access dozwolone)
     if (access(filePath.c_str(), W_OK) != 0) {
-        sendError(403); // Forbidden
+        sendError(403); 
         return;
     }
     
-    // Usuń plik (unlink dozwolone w C - możesz użyć przez std::remove)
     if (std::remove(filePath.c_str()) != 0) {
-        // Błąd usuwania
         sendError(500);
         return;
     }
     
-    // Sukces - wyślij 204 No Content
     std::ostringstream response;
     response << "HTTP/1.1 204 No Content\r\n"
              << "Connection: close\r\n"
@@ -607,30 +592,26 @@ void Http::deleteFile(const std::string& filePath) {
 }
 
 void Http::deleteDirectory(const std::string& dirPath) {
-    // Sprawdź czy URL kończy się na '/'
     std::string urlPath = _s_requestData._path;
     if (urlPath[urlPath.length() - 1] != '/') {
-        sendError(409); // Conflict - wymagany trailing slash dla katalogów
+        sendError(409); 
         return;
     }
     
-    // Sprawdź uprawnienia
     if (access(dirPath.c_str(), W_OK) != 0) {
         sendError(403);
         return;
     }
     
-    // Spróbuj usunąć katalog (tylko pusty)
     if (rmdir(dirPath.c_str()) != 0) {
         if (errno == ENOTEMPTY || errno == EEXIST) {
-            sendError(409); // Conflict - katalog nie jest pusty
+            sendError(409); 
         } else {
             sendError(500);
         }
         return;
     }
     
-    // Sukces
     std::ostringstream response;
     response << "HTTP/1.1 204 No Content\r\n"
              << "Connection: close\r\n"
@@ -641,12 +622,10 @@ void Http::deleteDirectory(const std::string& dirPath) {
 }
 
 bool Http::isCGI() {
-    // Sprawdź czy CGI jest skonfigurowane
     if (_myConfig.cgi_ext.empty() || _myConfig.cgi_path.empty()) {
         return false;
     }
     
-    // Pobierz rozszerzenie z path
     size_t dotPos = _s_requestData._path.rfind('.');
     if (dotPos == std::string::npos) {
         return false;
@@ -654,8 +633,6 @@ bool Http::isCGI() {
     
     std::string extension = _s_requestData._path.substr(dotPos);
     
-    // Sprawdź czy rozszerzenie pasuje
-    // UWAGA: _myConfig.cgi_ext to string, nie vector!
     return (extension == _myConfig.cgi_ext);
 }
 
@@ -703,7 +680,6 @@ void Http::responseBuilder() {
     } else if (_s_requestData._method == "DELETE") {
         deleteResponseBuilder();
     } else {
-        // Nieobsługiwana metoda
         _s_responseData._hasError = true;
         _s_responseData._responseStatusCode = 501;
         _s_responseData._response = _httpError.generateErrorResponse(501);
@@ -711,10 +687,8 @@ void Http::responseBuilder() {
 }
 
 LocationConfig Http::getMyConfig() {
-    // Znajdź odpowiednią lokację dla ścieżki
     LocationConfig myConfig;
     
-    // Wyzeruj wszystkie wartości
     myConfig.location_path = "";
     myConfig.root = "";
     myConfig.index = "";
@@ -733,16 +707,13 @@ LocationConfig Http::getMyConfig() {
     
     for (std::map<std::string, LocationConfig>::iterator it = _serverData.locations.begin();
          it != _serverData.locations.end(); ++it) {
-        //czy ścieżka zaczyna się od route
         if (_s_requestData._path.find(it->first) == 0) {
-            //merge
             myConfig = Config::getMergedLocationConfig(_serverData, it->second);
             locationFound = true;
             break;
         }
     }
     
-    // Jeśli nie znaleziono lokacji, skopiuj ustawienia z serwera
     if (!locationFound) {
         myConfig.root = _serverData.root;
         myConfig.allow_methods = _serverData.allow_methods;
@@ -762,3 +733,111 @@ bool Http::getIsError() const { return _s_responseData._hasError; }
 int Http::getStatusCode() const { return _s_responseData._responseStatusCode; }
 
 std::string Http::getResponse() const { return _s_responseData._response; }
+
+static std::string trim(const std::string& s) {
+    size_t b = 0, e = s.size();
+    while (b < e && (s[b] == ' ' || s[b] == '\t' || s[b] == '\r' || s[b] == '\n')) b++;
+    while (e > b && (s[e - 1] == ' ' || s[e - 1] == '\t' || s[e - 1] == '\r' || s[e - 1] == '\n')) e--;
+    return s.substr(b, e - b);
+}
+
+static std::string sanitizeFilename(std::string name) {
+    size_t p = name.find_last_of("/\\");
+    if (p != std::string::npos) name = name.substr(p + 1);
+
+
+    std::string out;
+    out.reserve(name.size());
+    for (size_t i = 0; i < name.size(); ++i) {
+        unsigned char c = static_cast<unsigned char>(name[i]);
+        if (std::isalnum(c) || c == '.' || c == '_' || c == '-' ) out.push_back(c);
+        else out.push_back('_');
+    }
+
+    if (out == "." || out == "..") return "upload.bin";
+    return out;
+}
+
+static bool extractBoundary(const std::string& contentType, std::string& boundaryOut) {
+    // Content-Type: multipart/form-data; boundary=----WebKitFormBoundary...
+    std::string ct = contentType;
+    size_t bpos = ct.find("boundary=");
+    if (bpos == std::string::npos) return false;
+    bpos += 9;
+
+    std::string b = ct.substr(bpos);
+    b = trim(b);
+    if (!b.empty() && b[0] == '"') {
+        size_t q = b.find('"', 1);
+        if (q == std::string::npos) return false;
+        b = b.substr(1, q - 1);
+    } else {
+        // utnij po ';'
+        size_t sc = b.find(';');
+        if (sc != std::string::npos) b = b.substr(0, sc);
+        b = trim(b);
+    }
+
+    if (b.empty()) return false;
+    boundaryOut = b;
+    return true;
+}
+
+static bool parseMultipartFilePart(const std::string& body,
+                                   const std::string& boundary,
+                                   MultipartFile& out,
+                                   const std::string& fieldName) {
+    const std::string b = "--" + boundary;
+    size_t pos = 0;
+
+    while (true) {
+        size_t start = body.find(b, pos);
+        if (start == std::string::npos) return false;
+        start += b.size();
+
+        if (start + 2 <= body.size() && body.compare(start, 2, "--") == 0) return false;
+        if (start + 2 <= body.size() && body.compare(start, 2, "\r\n") == 0) start += 2;
+
+        size_t headerEnd = body.find("\r\n\r\n", start);
+        if (headerEnd == std::string::npos) return false;
+
+        std::string partHeaders = body.substr(start, headerEnd - start);
+        size_t dataStart = headerEnd + 4;
+
+        size_t next = body.find("\r\n" + b, dataStart);
+        if (next == std::string::npos) return false;
+
+        if (partHeaders.find("Content-Disposition:") != std::string::npos) {
+            if (!fieldName.empty()) {
+                std::string needle = "name=\"" + fieldName + "\"";
+                if (partHeaders.find(needle) == std::string::npos) {
+                    pos = next + 2;
+                    continue;
+                }
+            }
+
+            size_t fn = partHeaders.find("filename=");
+            if (fn == std::string::npos) {
+                pos = next + 2;
+                continue;
+            }
+
+            std::string filename;
+            fn += 9;
+            if (fn < partHeaders.size() && partHeaders[fn] == '"') {
+                size_t q = partHeaders.find('"', fn + 1);
+                if (q != std::string::npos) filename = partHeaders.substr(fn + 1, q - (fn + 1));
+            } else {
+                size_t e = partHeaders.find_first_of(";\r\n", fn);
+                filename = partHeaders.substr(fn, e == std::string::npos ? std::string::npos : (e - fn));
+                filename = trim(filename);
+            }
+
+            out.filename = sanitizeFilename(filename.empty() ? "upload.bin" : filename);
+            out.data = body.substr(dataStart, next - dataStart);
+            return true;
+        }
+
+        pos = next + 2;
+    }
+}

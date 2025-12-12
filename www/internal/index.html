@@ -61,7 +61,9 @@
 			function showResp(el, ok, text) {
 			el.hidden = false;
 			el.className = 'response ' + (ok ? 'ok' : 'err');
-				el.textContent = text; 
+			el.innerHTML = '';
+			
+			el.appendChild(document.createTextNode(text));
 
 			const br = document.createElement('br');
 			const btn = document.createElement('button');
@@ -114,11 +116,15 @@
 			const form = new FormData();
 			form.append('note', new Blob([`Demo upload ${new Date().toISOString()}`], { type: 'text/plain' }), 'note.txt');
 			try {
+				console.log('Sending POST request...');
 				const res = await fetch('/internal', { method: 'POST', body: form });
+				console.log('Response received:', res.status, res.statusText);
 				const body = await res.text();
+				console.log('Body received:', body.substring(0, 100));
 				showResp(respBox, res.ok, `Status: ${res.status} ${res.statusText}\n\n${body}`);
 			} catch (e) {
-						showResp(respBox, false, `Error: ${e.message}`);
+				console.error('Fetch error:', e);
+				showResp(respBox, false, `Error: ${e.message}`);
 			}
 		});
 
