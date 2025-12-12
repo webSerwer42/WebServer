@@ -1,0 +1,70 @@
+
+
+socket: 4 ready to connect
+-->This is request: POST /internal HTTP/1.1
+Host: 0.0.0.0:9090
+Connection: keep-alive
+Content-Length: 234
+User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary2GBTqSTG3ZfN4AlQ
+Accept: */*
+Sec-GPC: 1
+Accept-Language: en-US,en;q=0.9
+Origin: http://0.0.0.0:9090
+Referer: http://0.0.0.0:9090/
+Accept-Encoding: gzip, deflate
+
+------WebKitFormBoundary2GBTqSTG3ZfN4AlQ
+Content-Disposition: form-data; name="file"; filename="txt.txt"
+Content-Type: text/plain
+
+git pull origin remotes/origin/feature/client-struct
+
+------WebKitFormBoundary2GBTqSTG3ZfN4AlQ--
+
+DEBUG _myConfig.has_redirect: 0
+DEBUG _myConfig.redirect_url: ''
+DEBUG _myConfig.redirect_code: 0
+Debug: Exiting Http constructor
+HTTP/1.1 200 OK
+Content-Type: text/html
+Content-Length: 330
+Connection: close
+
+<html><body><h1>POST Data Received</h1><p>Content-Length: 234 bytes</p><pre>------WebKitFormBoundary2GBTqSTG3ZfN4AlQ
+Content-Disposition: form-data; name="file"; filename="txt.txt"
+Content-Type: text/plain
+
+git pull origin remotes/origin/feature/client-struct
+
+------WebKitFormBoundary2GBTqSTG3ZfN4AlQ--
+</pre></body></html>
+--> This is Response: HTTP/1.1 200 OK
+Content-Type: text/html
+Content-Length: 330
+Connection: close
+
+<html><body><h1>POST Data Received</h1><p>Content-Length: 234 bytes</p><pre>------WebKitFormBoundary2GBTqSTG3ZfN4AlQ
+Content-Disposition: form-data; name="file"; filename="txt.txt"
+Content-Type: text/plain
+
+git pull origin remotes/origin/feature/client-struct
+
+------WebKitFormBoundary2GBTqSTG3ZfN4AlQ--
+</pre></body></html>
+actual client: 6
+send buffer: HTTP/1.1 200 OK
+Content-Type: text/html
+Content-Length: 330
+Connection: close
+
+<html><body><h1>POST Data Received</h1><p>Content-Length: 234 bytes</p><pre>------WebKitFormBoundary2GBTqSTG3ZfN4AlQ
+Content-Disposition: form-data; name="file"; filename="txt.txt"
+Content-Type: text/plain
+
+git pull origin remotes/origin/feature/client-struct
+
+------WebKitFormBoundary2GBTqSTG3ZfN4AlQ--
+</pre></body></html>
+
+

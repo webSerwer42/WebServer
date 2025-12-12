@@ -1,6 +1,21 @@
 #include "Http.hpp"
 #include "../errors/error.hpp"
-#include <cstdlib> // For std::atoi
+#include <cstdlib>
+#include <cctype>
+#include <sstream>
+#include <ctime>
+#include <fcntl.h>
+#include <unistd.h>
+
+// ZDEFINIUJ typ przed użyciem w postResponseBuilder()
+struct MultipartFile {
+    std::string filename;
+    std::string data;
+};
+
+// Forward declarations (bo używane w postResponseBuilder, a zdefiniowane niżej)
+static bool extractBoundary(const std::string& contentType, std::string& boundaryOut);
+static bool parseMultipartFilePart(const std::string& body, const std::string& boundary, MultipartFile& out);
 
 // Constructor
 Http::Http (std::string &rawRequest, ServerConfig serverData){
@@ -465,76 +480,94 @@ void Http::handleDirectory(const std::string& dirPath, const std::string& urlPat
 
 // Build POST response
 void Http::postResponseBuilder() {
-    // Sprawdź czy mamy body
-    if (_rawRequestPtr == NULL || _bodyLen == 0) {
-        sendError(400); // Bad Request - brak danych
-        return;
-    }
-    
-    // Pobierz body
-    std::string body = _rawRequestPtr->substr(_bodyStart, _bodyLen);
-    
-    // Jeśli location ma upload_dir - zapisz jako plik
-    if (!_myConfig.upload_dir.empty()) {
-        // UPLOAD PLIKU
-        
-        // Wygeneruj unikalną nazwę
-        std::ostringstream oss;
-        oss << "upload_" << std::time(NULL) << ".bin";
-        std::string filename = oss.str();
-        
-        // Zbuduj pełną ścieżkę
-        std::string fullPath = _myConfig.upload_dir + "/" + filename;
-        
-        // Zapisz plik
-        int fd = open(fullPath.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0644);
-        if (fd == -1) {
-            sendError(500);
-            return;
-        }
-        
-        ssize_t bytesWritten = write(fd, body.c_str(), body.length());
-        close(fd);
-        
-        if (bytesWritten == -1 || static_cast<size_t>(bytesWritten) != body.length()) {
-            std::remove(fullPath.c_str());
-            sendError(500);
-            return;
-        }
-        
-        // Sukces - 201 Created
-        std::ostringstream response;
-        response << "HTTP/1.1 201 Created\r\n"
-                 << "Content-Type: text/html\r\n"
-                 << "Location: " << _myConfig.upload_dir << "/" << filename << "\r\n"
-                 << "Connection: close\r\n"
-                 << "\r\n"
-                 << "<html><body>"
-                 << "<h1>File Uploaded</h1>"
-                 << "<p>Filename: " << filename << "</p>"
-                 << "<p>Size: " << body.length() << " bytes</p>"
-                 << "</body></html>";
-        
-        _s_responseData._response = response.str();
-        _s_responseData._responseStatusCode = 201;
-        
-    } else {
-        // ZWYKŁY POST (bez uploadu)
-        
+    if (_rawRequestPtr == NULL) { sendError(400); return; }
+
+    // request body (może zawierać '\0' -> używaj _bodyLen)
+    std::string reqBody = _rawRequestPtr->substr(_bodyStart, _bodyLen);
+
+    // jeśli nie ma upload_dir, zachowaj dotychczasowe zachowanie
+    if (_myConfig.upload_dir.empty()) {
+        std::ostringstream html;
+        html << "<html><body>"
+             << "<h1>POST Data Received</h1>"
+             << "<p>Content-Length: " << reqBody.size() << " bytes</p>"
+             << "<pre>" << reqBody << "</pre>"
+             << "</body></html>";
+        const std::string respBody = html.str();
+
         std::ostringstream response;
         response << "HTTP/1.1 200 OK\r\n"
                  << "Content-Type: text/html\r\n"
+                 << "Content-Length: " << respBody.size() << "\r\n"
                  << "Connection: close\r\n"
                  << "\r\n"
-                 << "<html><body>"
-                 << "<h1>POST Data Received</h1>"
-                 << "<p>Content-Length: " << body.length() << " bytes</p>"
-                 << "<pre>" << body << "</pre>"
-                 << "</body></html>";
-        
+                 << respBody;
+
         _s_responseData._response = response.str();
         _s_responseData._responseStatusCode = 200;
+        return;
     }
+
+    // multipart -> zapisz oryginalny plik z parta name="file"
+    std::string contentType = "";
+    std::map<std::string, std::string>::iterator it = _s_requestData._headers.find("Content-Type");
+    if (it != _s_requestData._headers.end()) contentType = it->second;
+
+    std::string boundary;
+    if (contentType.find("multipart/form-data") == std::string::npos || !extractBoundary(contentType, boundary)) {
+        sendError(400);
+        return;
+    }
+
+    MultipartFile mf;
+    if (!parseMultipartFilePart(reqBody, boundary, mf)) {
+        sendError(400);
+        return;
+    }
+
+    std::string fullPath = _myConfig.upload_dir + "/" + mf.filename;
+
+    // jeśli istnieje, dopnij suffix
+    {
+        int probe = open(fullPath.c_str(), O_RDONLY);
+        if (probe != -1) {
+            close(probe);
+            std::ostringstream oss;
+            oss << _myConfig.upload_dir << "/" << std::time(NULL) << "_" << mf.filename;
+            fullPath = oss.str();
+        }
+    }
+
+    int fd = open(fullPath.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd == -1) { sendError(500); return; }
+
+    ssize_t written = write(fd, mf.data.data(), mf.data.size());
+    close(fd);
+
+    if (written == -1 || static_cast<size_t>(written) != mf.data.size()) {
+        std::remove(fullPath.c_str());
+        sendError(500);
+        return;
+    }
+
+    std::ostringstream html;
+    html << "<html><body>"
+         << "<h1>File Uploaded</h1>"
+         << "<p>Saved as: " << fullPath << "</p>"
+         << "<p>Bytes: " << mf.data.size() << "</p>"
+         << "</body></html>";
+    const std::string respBody = html.str();
+
+    std::ostringstream response;
+    response << "HTTP/1.1 201 Created\r\n"
+             << "Content-Type: text/html\r\n"
+             << "Content-Length: " << respBody.size() << "\r\n"
+             << "Connection: close\r\n"
+             << "\r\n"
+             << respBody;
+
+    _s_responseData._response = response.str();
+    _s_responseData._responseStatusCode = 201;
 }
 
 // Build DELETE response
@@ -762,3 +795,114 @@ bool Http::getIsError() const { return _s_responseData._hasError; }
 int Http::getStatusCode() const { return _s_responseData._responseStatusCode; }
 
 std::string Http::getResponse() const { return _s_responseData._response; }
+
+static std::string trim(const std::string& s) {
+    size_t b = 0, e = s.size();
+    while (b < e && (s[b] == ' ' || s[b] == '\t' || s[b] == '\r' || s[b] == '\n')) b++;
+    while (e > b && (s[e - 1] == ' ' || s[e - 1] == '\t' || s[e - 1] == '\r' || s[e - 1] == '\n')) e--;
+    return s.substr(b, e - b);
+}
+
+static std::string sanitizeFilename(std::string name) {
+    // usuń ścieżki (Windows/Linux)
+    size_t p = name.find_last_of("/\\");
+    if (p != std::string::npos) name = name.substr(p + 1);
+
+    // zabroń pustych i podejrzanych
+    if (name.empty()) return "upload.bin";
+
+    // zostaw bezpieczny zestaw znaków
+    std::string out;
+    out.reserve(name.size());
+    for (size_t i = 0; i < name.size(); ++i) {
+        unsigned char c = static_cast<unsigned char>(name[i]);
+        if (std::isalnum(c) || c == '.' || c == '_' || c == '-' ) out.push_back(c);
+        else out.push_back('_');
+    }
+
+    // uniknij "." i ".."
+    if (out == "." || out == "..") return "upload.bin";
+    return out;
+}
+
+static bool extractBoundary(const std::string& contentType, std::string& boundaryOut) {
+    // Content-Type: multipart/form-data; boundary=----WebKitFormBoundary...
+    std::string ct = contentType;
+    size_t bpos = ct.find("boundary=");
+    if (bpos == std::string::npos) return false;
+    bpos += 9;
+
+    std::string b = ct.substr(bpos);
+    b = trim(b);
+    // boundary może być w cudzysłowie
+    if (!b.empty() && b[0] == '"') {
+        size_t q = b.find('"', 1);
+        if (q == std::string::npos) return false;
+        b = b.substr(1, q - 1);
+    } else {
+        // utnij po ';'
+        size_t sc = b.find(';');
+        if (sc != std::string::npos) b = b.substr(0, sc);
+        b = trim(b);
+    }
+
+    if (b.empty()) return false;
+    boundaryOut = b;
+    return true;
+}
+
+static bool parseMultipartFilePart(const std::string& body, const std::string& boundary, MultipartFile& out) {
+    const std::string b = "--" + boundary;
+    size_t pos = 0;
+
+    // iteruj po partach
+    while (true) {
+        size_t start = body.find(b, pos);
+        if (start == std::string::npos) return false;
+        start += b.size();
+
+        // koniec multipart?
+        if (start + 2 <= body.size() && body.compare(start, 2, "--") == 0) return false;
+
+        // pomiń \r\n po boundary
+        if (start + 2 <= body.size() && body.compare(start, 2, "\r\n") == 0) start += 2;
+
+        size_t headerEnd = body.find("\r\n\r\n", start);
+        if (headerEnd == std::string::npos) return false;
+
+        std::string partHeaders = body.substr(start, headerEnd - start);
+        size_t dataStart = headerEnd + 4;
+
+        // następne boundary wyznacza koniec danych
+        size_t next = body.find("\r\n" + b, dataStart);
+        if (next == std::string::npos) return false;
+
+        // sprawdź Content-Disposition
+        // szukamy name="file"
+        if (partHeaders.find("Content-Disposition:") != std::string::npos &&
+            partHeaders.find("name=\"file\"") != std::string::npos) {
+
+            // wyciągnij filename="..."
+            std::string filename;
+            size_t fn = partHeaders.find("filename=");
+            if (fn != std::string::npos) {
+                fn += 9;
+                // filename="x"
+                if (fn < partHeaders.size() && partHeaders[fn] == '"') {
+                    size_t q = partHeaders.find('"', fn + 1);
+                    if (q != std::string::npos) filename = partHeaders.substr(fn + 1, q - (fn + 1));
+                } else {
+                    size_t e = partHeaders.find_first_of(";\r\n", fn);
+                    filename = partHeaders.substr(fn, e == std::string::npos ? std::string::npos : (e - fn));
+                    filename = trim(filename);
+                }
+            }
+
+            out.filename = sanitizeFilename(filename.empty() ? "upload.bin" : filename);
+            out.data = body.substr(dataStart, next - dataStart);
+            return true;
+        }
+
+        pos = next + 2; // dalej
+    }
+}
