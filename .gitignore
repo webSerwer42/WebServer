@@ -1,3 +1,6 @@
+# 42 School tester
+/42test/
+
 # Ignore object files and compiled binaries
 *.o
 *.out
