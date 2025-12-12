@@ -19,13 +19,11 @@ void CoreEngine::setConnection(size_t i)
    }
    pollfd pfd;
 
-   // pollFDs = (pollfd *)realloc(pollFDs, (pollFDsNum + 1) * sizeof(pollfd));
    pfd.fd = client.FD;
    pfd.revents = 0;
    pollFDs.push_back(pfd);
 
    isClientFD[pollFDsNum] = true;
-   // clientToServer[pollFDsNum] = serverFDtoIndex[pollFDs[i].fd]; // zapisz który serwer przyjął połączenie
    pollFDs[pollFDsNum].events = POLLIN;
    pollFDsNum++;
    this->clientVec.push_back(client);
@@ -54,11 +52,8 @@ void CoreEngine::recivNClose(size_t el)
       return;
    }
 
-   // WAŻNE: traktuj dane jako bajty (upload może zawierać '\0')
    client.leftooverBuffer.append(client.inputBuffer, client.byteRecived);
 
-   // Opcjonalnie: limit na rozmiar bufora (żeby nie rosło w nieskończoność)
-   // if (client.leftooverBuffer.size() > 10 * 1024 * 1024) { ... 413 ... }
 
    std::string &temp = client.leftooverBuffer;
    size_t begin = 0;
@@ -68,14 +63,12 @@ void CoreEngine::recivNClose(size_t el)
       size_t end = temp.find("\r\n\r\n", begin);
       if (end == std::string::npos)
       {
-         // czekamy na resztę nagłówków
          temp.erase(0, begin);
          break;
       }
 
       std::string headers = temp.substr(begin, end - begin + 4);
 
-      // Minimalna walidacja dopiero, gdy mamy całe nagłówki
       if (headers.find("HTTP/") == std::string::npos)
       {
          std::cout << "Invalid HTTP headers detected!" << std::endl;
@@ -103,7 +96,6 @@ void CoreEngine::recivNClose(size_t el)
 
       if (temp.size() - begin < fullRequestLen)
       {
-         // brakuje body
          temp.erase(0, begin);
          break;
       }
@@ -133,13 +125,11 @@ void CoreEngine::sendToClient(size_t el)
    std::cout << "send buffer: " << client.sendBuffer << std::endl;
    try
    {
-      // Obsluga erroruw w Http class
       int byteSend = send(pollFDs[el].fd, client.sendBuffer.c_str() + client.sendOffset,
                           client.sendBuffer.size() - client.sendOffset, 0); // check if string functions are ok
       if (byteSend <= 0)
       {
          std::cerr << "send() failed: " << strerror(errno) << std::endl;
-         // Wyślij 500 Internal Server Error
          HttpError errorHandler;
          std::string errorResponse = errorHandler.generateErrorResponse(500);
          closeCLient(el);
@@ -159,7 +149,6 @@ void CoreEngine::sendToClient(size_t el)
    }
    catch (const std::exception &e)
    {
-      // Jeśli cokolwiek pójdzie nie tak podczas parsowania lub generowania response
       std::cerr << "Exception in sendToClient: " << e.what() << std::endl;
       HttpError errorHandler;
       std::string errorResponse = errorHandler.generateErrorResponse(500,

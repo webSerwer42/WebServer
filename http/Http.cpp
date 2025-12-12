@@ -13,9 +13,12 @@ struct MultipartFile {
     std::string data;
 };
 
-// Forward declarations (bo używane w postResponseBuilder, a zdefiniowane niżej)
+// Forward declarations
 static bool extractBoundary(const std::string& contentType, std::string& boundaryOut);
-static bool parseMultipartFilePart(const std::string& body, const std::string& boundary, MultipartFile& out);
+static bool parseMultipartFilePart(const std::string& body,
+                                   const std::string& boundary,
+                                   MultipartFile& out,
+                                   const std::string& fieldName);
 
 // Constructor
 Http::Http (std::string &rawRequest, ServerConfig serverData){
@@ -520,9 +523,14 @@ void Http::postResponseBuilder() {
     }
 
     MultipartFile mf;
-    if (!parseMultipartFilePart(reqBody, boundary, mf)) {
-        sendError(400);
-        return;
+
+    // 1) preferuj klasyczny upload: name="file"
+    if (!parseMultipartFilePart(reqBody, boundary, mf, "file")) {
+        // 2) fallback: pierwszy part z filename= (np. name="note")
+        if (!parseMultipartFilePart(reqBody, boundary, mf, "")) {
+            sendError(400);
+            return;
+        }
     }
 
     std::string fullPath = _myConfig.upload_dir + "/" + mf.filename;
@@ -851,20 +859,19 @@ static bool extractBoundary(const std::string& contentType, std::string& boundar
     return true;
 }
 
-static bool parseMultipartFilePart(const std::string& body, const std::string& boundary, MultipartFile& out) {
+static bool parseMultipartFilePart(const std::string& body,
+                                   const std::string& boundary,
+                                   MultipartFile& out,
+                                   const std::string& fieldName) {
     const std::string b = "--" + boundary;
     size_t pos = 0;
 
-    // iteruj po partach
     while (true) {
         size_t start = body.find(b, pos);
         if (start == std::string::npos) return false;
         start += b.size();
 
-        // koniec multipart?
         if (start + 2 <= body.size() && body.compare(start, 2, "--") == 0) return false;
-
-        // pomiń \r\n po boundary
         if (start + 2 <= body.size() && body.compare(start, 2, "\r\n") == 0) start += 2;
 
         size_t headerEnd = body.find("\r\n\r\n", start);
@@ -873,29 +880,36 @@ static bool parseMultipartFilePart(const std::string& body, const std::string& b
         std::string partHeaders = body.substr(start, headerEnd - start);
         size_t dataStart = headerEnd + 4;
 
-        // następne boundary wyznacza koniec danych
         size_t next = body.find("\r\n" + b, dataStart);
         if (next == std::string::npos) return false;
 
-        // sprawdź Content-Disposition
-        // szukamy name="file"
-        if (partHeaders.find("Content-Disposition:") != std::string::npos &&
-            partHeaders.find("name=\"file\"") != std::string::npos) {
-
-            // wyciągnij filename="..."
-            std::string filename;
-            size_t fn = partHeaders.find("filename=");
-            if (fn != std::string::npos) {
-                fn += 9;
-                // filename="x"
-                if (fn < partHeaders.size() && partHeaders[fn] == '"') {
-                    size_t q = partHeaders.find('"', fn + 1);
-                    if (q != std::string::npos) filename = partHeaders.substr(fn + 1, q - (fn + 1));
-                } else {
-                    size_t e = partHeaders.find_first_of(";\r\n", fn);
-                    filename = partHeaders.substr(fn, e == std::string::npos ? std::string::npos : (e - fn));
-                    filename = trim(filename);
+        // musi być Content-Disposition
+        if (partHeaders.find("Content-Disposition:") != std::string::npos) {
+            // jeśli fieldName podane, wymagaj name="fieldName"
+            if (!fieldName.empty()) {
+                std::string needle = "name=\"" + fieldName + "\"";
+                if (partHeaders.find(needle) == std::string::npos) {
+                    pos = next + 2;
+                    continue;
                 }
+            }
+
+            // wymagaj filename=
+            size_t fn = partHeaders.find("filename=");
+            if (fn == std::string::npos) {
+                pos = next + 2;
+                continue;
+            }
+
+            std::string filename;
+            fn += 9;
+            if (fn < partHeaders.size() && partHeaders[fn] == '"') {
+                size_t q = partHeaders.find('"', fn + 1);
+                if (q != std::string::npos) filename = partHeaders.substr(fn + 1, q - (fn + 1));
+            } else {
+                size_t e = partHeaders.find_first_of(";\r\n", fn);
+                filename = partHeaders.substr(fn, e == std::string::npos ? std::string::npos : (e - fn));
+                filename = trim(filename);
             }
 
             out.filename = sanitizeFilename(filename.empty() ? "upload.bin" : filename);
@@ -903,6 +917,6 @@ static bool parseMultipartFilePart(const std::string& body, const std::string& b
             return true;
         }
 
-        pos = next + 2; // dalej
+        pos = next + 2;
     }
 }
