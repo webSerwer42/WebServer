@@ -61,10 +61,8 @@
 			function showResp(el, ok, text) {
 			el.hidden = false;
 			el.className = 'response ' + (ok ? 'ok' : 'err');
-			// Clear previous content
 			el.innerHTML = '';
 			
-			// Add text content
 			el.appendChild(document.createTextNode(text));
 
 			const br = document.createElement('br');

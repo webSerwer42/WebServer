@@ -61,7 +61,9 @@
 			function showResp(el, ok, text) {
 			el.hidden = false;
 			el.className = 'response ' + (ok ? 'ok' : 'err');
-				el.textContent = text; 
+			el.innerHTML = '';
+			
+			el.appendChild(document.createTextNode(text));
 
 			const br = document.createElement('br');
 			const btn = document.createElement('button');
