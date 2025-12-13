@@ -406,11 +406,14 @@ void Http::generateDirectoryListing(const std::string& dirPath) {
 void Http::handleRootPath() {
     if (!_myConfig.index.empty()) {
         std::string indexPath = _myConfig.root + "/" + _myConfig.index;
+
+    if (!indexPath.empty() && indexPath[0] == '/')
+        indexPath = indexPath.substr(1);
         
-        if (resourceExists(indexPath)) {
-            handleFile(indexPath);
-            return;
-        }
+    if (resourceExists(indexPath)) {
+        handleFile(indexPath);
+        return;
+    }
     }
     if (_myConfig.autoindex) {
         generateDirectoryListing(_myConfig.root);

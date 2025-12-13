@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>webserv — mapa projektu + workflow</title>
+  <style>
+    :root{
+      --bg:#0b0f14;
+      --panel:#111827;
+      --panel2:#0f172a;
+      --fg:#e5e7eb;
+      --muted:#9ca3af;
+      --acc:#60a5fa;
+      --acc2:#34d399;
+      --warn:#fbbf24;
+      --bad:#fb7185;
+      --border:rgba(255,255,255,.10);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, "Noto Sans", "Liberation Sans", sans-serif;
+    }
+    html,body{height:100%}
+    body{margin:0;background:linear-gradient(180deg,var(--bg),#070a0f);color:var(--fg);font-family:var(--sans);line-height:1.5}
+    a{color:var(--acc);text-decoration:none}
+    a:hover{text-decoration:underline}
+    .wrap{max-width:1100px;margin:0 auto;padding:24px 16px 64px}
+    header{border:1px solid var(--border);border-radius:16px;padding:18px;background:linear-gradient(180deg,var(--panel),var(--panel2))}
+    h1{margin:0 0 6px;font-size:22px}
+    .sub{margin:0;color:var(--muted);font-size:13px}
+    .grid{display:grid;grid-template-columns: 320px 1fr;gap:16px;margin-top:16px}
+    @media (max-width: 940px){.grid{grid-template-columns:1fr}}
+    nav, main{border:1px solid var(--border);border-radius:16px;background:rgba(255,255,255,.03)}
+    nav{padding:14px}
+    main{padding:14px 16px}
+    .toc a{display:block;padding:6px 8px;border-radius:10px}
+    .toc a:hover{background:rgba(96,165,250,.08)}
+    .pill{display:inline-block;font-size:12px;padding:2px 8px;border:1px solid var(--border);border-radius:999px;color:var(--muted)}
+    .pill.ok{color:var(--acc2);border-color:rgba(52,211,153,.35)}
+    .pill.warn{color:var(--warn);border-color:rgba(251,191,36,.35)}
+    .pill.bad{color:var(--bad);border-color:rgba(251,113,133,.35)}
+    h2{margin:18px 0 10px;font-size:18px}
+    h3{margin:14px 0 8px;font-size:15px;color:#d1d5db}
+    p{margin:8px 0;color:#dbe1ea}
+    .muted{color:var(--muted)}
+    pre{margin:10px 0;padding:12px 12px;border-radius:14px;border:1px solid var(--border);background:rgba(0,0,0,.35);overflow:auto}
+    code{font-family:var(--mono);font-size:12.5px}
+    table{width:100%;border-collapse:separate;border-spacing:0;margin:10px 0;border:1px solid var(--border);border-radius:14px;overflow:hidden}
+    th,td{padding:10px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+    th{background:rgba(255,255,255,.05);text-align:left;font-size:12px;color:#e5e7eb}
+    td{font-size:13px;color:#dbe1ea}
+    tr:last-child td{border-bottom:none}
+    details{border:1px solid var(--border);border-radius:14px;padding:10px 12px;background:rgba(255,255,255,.02);margin:10px 0}
+    summary{cursor:pointer;font-weight:600;color:#e5e7eb}
+    summary .hint{font-weight:400;color:var(--muted);margin-left:8px;font-size:12px}
+    .k{font-family:var(--mono);font-size:12.5px;color:#e5e7eb}
+    .callout{border-left:3px solid rgba(96,165,250,.8);padding:10px 12px;background:rgba(96,165,250,.08);border-radius:10px}
+    .callout.warn{border-left-color:rgba(251,191,36,.9);background:rgba(251,191,36,.10)}
+    .callout.bad{border-left-color:rgba(251,113,133,.9);background:rgba(251,113,133,.10)}
+    footer{margin-top:18px;color:var(--muted);font-size:12px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>webserv — kompleksowa mapa projektu + workflow</h1>
+      <p class="sub">
+        Repo: <span class="pill">hipoliciak/webserv</span>
+        • Język: <span class="pill">C++98</span>
+        • I/O: <span class="pill">poll()</span>
+        • CGI: <span class="pill">async + kolejka</span>
+        • Testy: <span class="pill">ubuntu_tester</span>
+      </p>
+      <p class="sub">Ten dokument jest „mapą” repo: co gdzie jest, jak płynie request i jak odpalać/diagnozować.</p>
+    </header>
+
+    <div class="grid">
+      <nav>
+        <div class="toc">
+          <a href="#quick">Szybki start</a>
+          <a href="#tree">Mapa plików</a>
+          <a href="#components">Komponenty (klasy)</a>
+          <a href="#config">Konfiguracja (nginx-style)</a>
+          <a href="#workflow-http">Workflow: HTTP (poll → response)</a>
+          <a href="#workflow-cgi">Workflow: CGI asynchroniczne</a>
+          <a href="#workflow-upload">Workflow: upload / PUT</a>
+          <a href="#workflow-tester">Workflow: ubuntu_tester</a>
+          <a href="#pitfalls">Pułapki i checklista</a>
+        </div>
+        <hr style="border:none;border-top:1px solid var(--border);margin:12px 0" />
+        <p class="muted" style="margin:0">
+          Skróty: <span class="k">src/</span> implementacje, <span class="k">include/</span> nagłówki, <span class="k">config/</span> konfiguracje, <span class="k">www-*</span> dokument root.
+        </p>
+      </nav>
+
+      <main>
+        <section id="quick">
+          <h2>Szybki start</h2>
+          <p>Najkrótsze komendy do zbudowania i uruchomienia serwera oraz uruchomienia testera.</p>
+          <pre><code># build
+make
+
+# run (domyślny config)
+./webserv
+
+# run (ubuntu tester config)
+./webserv config/ubuntu_tester.conf
+
+# tester (w osobnym terminalu, jeśli serwer działa)
+./ubuntu_tester http://localhost:8080</code></pre>
+          <div class="callout.warn">
+            <strong>Uwaga:</strong> tester wymaga konkretnych reguł routingu (GET-only na <span class="k">/</span>, PUT na <span class="k">/put_test/</span>, CGI dla <span class="k">.bla</span>, itd.).
+          </div>
+        </section>
+
+        <section id="tree">
+          <h2>Mapa plików</h2>
+          <details open>
+            <summary>Struktura repo (najważniejsze katalogi) <span class="hint">co jest gdzie i po co</span></summary>
+            <pre><code>.
+├── Makefile
+├── README.md
+├── EVALUATION_GUIDE.md
+├── webserv                     # binarka (po build)
+├── ubuntu_tester               # tester
+├── config/
+│   ├── default.conf
+│   ├── multi_server.conf
+│   ├── redirect_test.conf
+│   ├── test.conf
+│   └── ubuntu_tester.conf
+├── include/
+│   ├── webserv.hpp             # stałe, include systemowe, LocationConfig
+│   ├── Server.hpp              # event loop, routing, CGI, upload
+│   ├── Config.hpp              # parser/config model
+│   ├── Client.hpp              # stan połączenia, buffering, body streaming
+│   ├── HttpRequest.hpp         # parser request (headers + body file)
+│   ├── HttpResponse.hpp        # budowa odpowiedzi
+│   ├── CGI.hpp                 # env CGI, interpreter/script
+│   └── Utils.hpp               # log, pliki, string utils
+├── src/
+│   ├── main.cpp
+│   ├── Server.cpp
+│   ├── Config.cpp
+│   ├── Client.cpp
+│   ├── HttpRequest.cpp
+│   ├── HttpResponse.cpp
+│   ├── CGI.cpp
+│   └── Utils.cpp
+├── www-main/ www-api/ www-files/ www-dev/  # przykładowe docrooty
+└── YoupiBanane/                 # struktura wymagana przez ubuntu_tester</code></pre>
+          </details>
+        </section>
+
+        <section id="components">
+          <h2>Komponenty (klasy) i odpowiedzialności</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Komponent</th>
+                <th>Pliki</th>
+                <th>Rola</th>
+                <th>Najważniejsze API/flow</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Server</strong></td>
+                <td><span class="k">include/Server.hpp</span><br><span class="k">src/Server.cpp</span></td>
+                <td>Orkiestracja: sockety, <span class="k">poll()</span>, accept, read/write, routing, CGI async, upload.</td>
+                <td><span class="k">run()</span>, <span class="k">handleClientRead/Write()</span>, <span class="k">processHttpRequest()</span>, <span class="k">startAsyncCGI()</span></td>
+              </tr>
+              <tr>
+                <td><strong>Config</strong></td>
+                <td><span class="k">include/Config.hpp</span><br><span class="k">src/Config.cpp</span></td>
+                <td>Parser konfiguracji nginx-style: server blocks, location blocks, regex locations.</td>
+                <td><span class="k">getServers()</span>, <span class="k">getLocationConfig(...)</span></td>
+              </tr>
+              <tr>
+                <td><strong>Client</strong></td>
+                <td><span class="k">include/Client.hpp</span><br><span class="k">src/Client.cpp</span></td>
+                <td>Stan połączenia: buffering, parse headers, streaming body (z limitem), temp file dla body.</td>
+                <td><span class="k">readData()</span>, <span class="k">beginReadingBody(max)</span>, <span class="k">isRequestComplete()</span></td>
+              </tr>
+              <tr>
+                <td><strong>HttpRequest</strong></td>
+                <td><span class="k">include/HttpRequest.hpp</span><br><span class="k">src/HttpRequest.cpp</span></td>
+                <td>Parsing request line + headers + query params; body wskazywane przez path do pliku.</td>
+                <td><span class="k">parse()</span>, <span class="k">getMethod()</span>, <span class="k">getUri()</span></td>
+              </tr>
+              <tr>
+                <td><strong>HttpResponse</strong></td>
+                <td><span class="k">include/HttpResponse.hpp</span><br><span class="k">src/HttpResponse.cpp</span></td>
+                <td>Budowa status line, nagłówków, body; serializacja do string.</td>
+                <td><span class="k">setHeader()</span>, <span class="k">toString()</span></td>
+              </tr>
+              <tr>
+                <td><strong>CGI</strong></td>
+                <td><span class="k">include/CGI.hpp</span><br><span class="k">src/CGI.cpp</span></td>
+                <td>Przygotowanie env CGI/1.1, interpreter/path, body (również z pliku).</td>
+                <td><span class="k">setupEnvironment()</span>, <span class="k">createEnvArray()</span></td>
+              </tr>
+              <tr>
+                <td><strong>Utils</strong></td>
+                <td><span class="k">include/Utils.hpp</span><br><span class="k">src/Utils.cpp</span></td>
+                <td>Logowanie, helpery plików/ścieżek, stringi, IP klienta, itp.</td>
+                <td><span class="k">logInfo/logError</span>, <span class="k">getFileExtension()</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="config">
+          <h2>Konfiguracja (nginx-style)</h2>
+          <p>Konfiguracja steruje routingiem i zachowaniem per <span class="k">server</span> i per <span class="k">location</span>.</p>
+
+          <details open>
+            <summary>Najważniejsze dyrektywy <span class="hint">jak mapują się na kod</span></summary>
+            <table>
+              <thead>
+                <tr>
+                  <th>Dyrektywa</th>
+                  <th>Znaczenie</th>
+                  <th>Wpływ w runtime</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="k">listen</span>, <span class="k">host</span></td>
+                  <td>Na jakim adresie/porcie serwer nasłuchuje</td>
+                  <td>Tworzenie socketów + bind + listen; wiele serwerów = wiele fd w <span class="k">poll()</span></td>
+                </tr>
+                <tr>
+                  <td><span class="k">root</span></td>
+                  <td>Docroot (bazowa ścieżka plików)</td>
+                  <td>Resolve plików statycznych, katalogów i indexów</td>
+                </tr>
+                <tr>
+                  <td><span class="k">location</span> / <span class="k">location ~</span></td>
+                  <td>Blok routingu; regex ma <span class="k">~</span></td>
+                  <td>Dopasowanie dla URI (dokładne/prefix/regex)</td>
+                </tr>
+                <tr>
+                  <td><span class="k">allow_methods</span></td>
+                  <td>Dozwolone metody w danej lokalizacji</td>
+                  <td>Gdy niedozwolone → <span class="pill bad">405</span></td>
+                </tr>
+                <tr>
+                  <td><span class="k">client_max_body_size</span></td>
+                  <td>Limit body (per server lub per location)</td>
+                  <td>Weryfikacja podczas streamingu; przekroczenie → <span class="pill bad">413</span></td>
+                </tr>
+                <tr>
+                  <td><span class="k">autoindex</span>, <span class="k">default</span></td>
+                  <td>Listing katalogu + plik domyślny (index)</td>
+                  <td>Obsługa katalogów, generowanie listingu</td>
+                </tr>
+                <tr>
+                  <td><span class="k">upload_path</span></td>
+                  <td>Gdzie zapisywać uploady/PUT</td>
+                  <td>Zapis na dysk, wykorzystywany przez upload workflow</td>
+                </tr>
+                <tr>
+                  <td><span class="k">cgi_extensions</span> + <span class="k">cgi_path</span></td>
+                  <td>Mapowanie rozszerzenia na program CGI</td>
+                  <td>Uruchomienie CGI (pod ubuntu_tester: <span class="k">.bla</span>)</td>
+                </tr>
+              </tbody>
+            </table>
+          </details>
+
+          <details>
+            <summary>Przykład: <span class="k">config/ubuntu_tester.conf</span> <span class="hint">dlaczego jest specyficzny</span></summary>
+            <pre><code>server {
+  listen 8080
+  host localhost
+  server_name webserv
+  client_max_body_size 200M
+  root www-main
+
+  location / { allow_methods GET; default index.html; }
+  location /put_test/ { allow_methods PUT GET; upload_path uploads; }
+  location ~ \.bla$ { allow_methods POST; cgi_extensions .bla; cgi_path ./ubuntu_cgi_tester; }
+  location /post_body { allow_methods POST; client_max_body_size 100; }
+  location /directory { allow_methods GET; root YoupiBanane; default youpi.bad_extension; autoindex on; }
+}</code></pre>
+            <p class="muted">To jest config „pod testera”: wymusza konkretne zachowanie endpointów.</p>
+          </details>
+        </section>
+
+        <section id="workflow-http">
+          <h2>Workflow: HTTP (poll → response)</h2>
+
+          <details open>
+            <summary>Pipeline requestu <span class="hint">od socketu do odpowiedzi</span></summary>
+            <pre><code>poll() event loop (Server::run)
+  ├─ POLLIN na fd serwera → acceptNewConnection()
+  │    └─ dodaj klienta do pollFds + mapy _clients
+  └─ POLLIN na fd klienta → handleClientRead(clientFd)
+       ├─ Client::readData() (buforuje dane)
+       ├─ po nagłówkach: wyznacz maxBodySize (server/location)
+       │    └─ Client::beginReadingBody(maxBodySize)
+       ├─ streaming body (do temp file jeśli potrzeba)
+       ├─ jeśli przekroczono limit → 413 + Connection: close
+       └─ jeśli request kompletny → processHttpRequest(headers, bodyFilePath)
+             ├─ HttpRequest::parse()
+             ├─ dopasuj location
+             ├─ isMethodAllowed() ?
+             ├─ dispatch po metodzie:
+             │    ├─ GET  → static / directory listing / index
+             │    ├─ POST → upload / JSON / CGI (zależnie od location)
+             │    ├─ PUT  → zapis pliku (upload_path)
+             │    └─ DELETE → usuwanie (jeśli wspierane)
+             └─ queueResponse(clientFd, HttpResponse)
+
+  POLLOUT na fd klienta → handleClientWrite(clientFd)
+    └─ writeToClient() z _pendingWrites + offsety → ewentualnie close</code></pre>
+          </details>
+
+          <details>
+            <summary>Główne „decyzje routingu” <span class="hint">co wpływa na to, czy to CGI czy plik</span></summary>
+            <ul style="margin:10px 0 0 18px;color:#dbe1ea">
+              <li><span class="k">location</span> dopasowane po ścieżce (i ewentualnie regex).</li>
+              <li><span class="k">allow_methods</span> → blokada 405, zanim cokolwiek zrobisz dalej.</li>
+              <li>Rozszerzenie (np. <span class="k">.bla</span>) + ustawione <span class="k">cgi_path</span> → uruchomienie CGI.</li>
+              <li><span class="k">autoindex</span> + brak pliku domyślnego → generowanie listingu katalogu.</li>
+              <li><span class="k">client_max_body_size</span> → limitowanie body już podczas streamingu.</li>
+            </ul>
+          </details>
+        </section>
+
+        <section id="workflow-cgi">
+          <h2>Workflow: CGI asynchroniczne</h2>
+          <p>CGI jest uruchamiane jako proces dziecka (fork/exec), a komunikacja idzie przez pipe’y obsługiwane w tym samym <span class="k">poll()</span>.</p>
+
+          <details open>
+            <summary>Asynchroniczne CGI (high-level)</summary>
+            <pre><code>processHttpRequest()
+  └─ startAsyncCGI(clientFd, scriptPath, request, serverConfig, locationConfig, bodyFilePath)
+       ├─ przygotuj env (CGI::setupEnvironment)
+       ├─ utwórz pipes: stdin CGI + stdout CGI
+       ├─ fork()
+       │   ├─ child: dup2() pipes → execve(cgi_path/interpreter)
+       │   └─ parent: ustaw non-blocking, dodaj fd do poll
+       ├─ zapisz stan w _cgiProcesses (key: outputFd)
+       ├─ mapuj inputFd → outputFd w _cgiWritePipes
+       └─ jeśli body duże: karm CGI z pliku (bodyFilePath)
+
+poll() event loop:
+  ├─ POLLOUT na cgiInputFd → handleCgiWrite(cgiInputFd) (dokarmianie stdin)
+  └─ POLLIN na cgiOutputFd → handleCgiCompletion(cgiOutputFd) (odbiór stdout)
+       ├─ zbierz output, zbuduj HttpResponse
+       ├─ queueResponse(clientFd)
+       └─ cleanupCgiProcess() (zamknij fd, waitpid, sprzątnij temp file)</code></pre>
+          </details>
+
+          <div class="callout warn">
+            <strong>Kluczowa zasada:</strong> nie usuwaj plików tymczasowych body, dopóki CGI nie skończy czytać. Sprzątanie dopiero po zakończeniu procesu.
+          </div>
+
+          <details>
+            <summary>Kolejkowanie CGI <span class="hint">ograniczenie równoległości</span></summary>
+            <p class="muted">W serwerze jest kolejka CGI i limit równoległych procesów. Reszta czeka i jest odpalana, gdy zwolni się slot.</p>
+          </details>
+        </section>
+
+        <section id="workflow-upload">
+          <h2>Workflow: upload / PUT</h2>
+          <details open>
+            <summary>PUT (ubuntu_tester: <span class="k">/put_test/*</span>)</summary>
+            <pre><code>PUT /put_test/file
+  ├─ location /put_test/ → allow_methods PUT (i upload_path uploads)
+  ├─ body jest streamowane (może do temp file)
+  ├─ Server::handlePUTRequest()
+  └─ saveUploadedFile(filename, srcFilePath, uploadPath, isTempFile)
+       ├─ otwórz src (temp) + dst (uploads/...)
+       ├─ kopiuj strumieniowo
+       └─ jeśli src był temp → usuń po sukcesie</code></pre>
+          </details>
+
+          <details>
+            <summary>POST upload (multipart/form-data)</summary>
+            <p class="muted">Repo wspiera uploady — ścieżka docelowa zależy od <span class="k">upload_path</span> w location oraz obsługi POST w serwerze.</p>
+            <pre><code># przykład (jeśli endpoint upload jest skonfigurowany)
+curl -X POST -F "file=@README.md" http://localhost:8080/upload/</code></pre>
+          </details>
+
+          <div class="callout bad">
+            <strong>Nie psuj odpowiedzi HTTP logami:</strong> logowanie powinno iść na stderr, nie stdout (stdout miesza się z outputem CGI/HTTP).
+          </div>
+        </section>
+
+        <section id="workflow-tester">
+          <h2>Workflow: ubuntu_tester</h2>
+          <details open>
+            <summary>Co tester sprawdza (skrót)</summary>
+            <ul style="margin:10px 0 0 18px;color:#dbe1ea">
+              <li><span class="k">GET /</span> działa, ale <span class="k">POST /</span> ma być 405.</li>
+              <li><span class="k">GET /directory</span> mapuje się na <span class="k">YoupiBanane/</span> + autoindex.</li>
+              <li><span class="k">PUT /put_test/...</span> zapisuje pliki do katalogu uploadów.</li>
+              <li><span class="k">POST *.bla</span> uruchamia <span class="k">YoupiBanane/ubuntu_cgi_tester</span> jako CGI i poprawnie przenosi body (nawet 100MB).</li>
+              <li><span class="k">POST /post_body</span> ma limit body 100B (0/100 OK, 101+ nie).</li>
+            </ul>
+          </details>
+
+          <details>
+            <summary>Minimalny scenariusz uruchomienia testów</summary>
+            <pre><code># 1) uruchom serwer (w tle lub w osobnym terminalu)
+./webserv config/ubuntu_tester.conf
+
+# 2) uruchom tester
+./ubuntu_tester http://localhost:8080</code></pre>
+            <p class="muted">Jeżeli tester jest wrażliwy na strukturę katalogu, sprawdź, czy <span class="k">YoupiBanane/</span> ma wymagane pliki (w tym <span class="k">ubuntu_cgi_tester</span>).</p>
+          </details>
+        </section>
+
+        <section id="pitfalls">
+          <h2>Pułapki i checklista</h2>
+          <details open>
+            <summary>Najczęstsze problemy</summary>
+            <ul style="margin:10px 0 0 18px;color:#dbe1ea">
+              <li><strong>Limity body:</strong> limituj podczas streamingu (nie dopiero po wczytaniu całości) → unikaj OOM.</li>
+              <li><strong>Temp file lifecycle:</strong> nie kasuj plików body, zanim CGI nie skończy.</li>
+              <li><strong>stderr vs stdout:</strong> logi na stderr; stdout jest „danymi” HTTP/CGI.</li>
+              <li><strong>poll list management:</strong> usuwając fd z listy, uważaj na indeksy w pętli.</li>
+              <li><strong>.bla 100MB:</strong> karm CGI strumieniowo (z pliku), nie trzymaj 100MB w RAM.</li>
+            </ul>
+          </details>
+
+          <details>
+            <summary>Szybka checklista przed evaluacją</summary>
+            <pre><code>[ ] make re przechodzi
+[ ] ./webserv config/ubuntu_tester.conf odpala się bez crash
+[ ] curl -i http://localhost:8080/ → 200
+[ ] curl -i -X POST http://localhost:8080/ → 405
+[ ] curl -i http://localhost:8080/directory/ → listing
+[ ] PUT /put_test/... zapisuje plik
+[ ] POST 100MB na *.bla nie korumpuje danych
+[ ] POST /post_body 101B → odpowiedź zgodna z projektem (najczęściej 413)</code></pre>
+          </details>
+        </section>
+
+        <footer>
+          Źródła mapy: struktura repo + README/EVALUATION_GUIDE + konfiguracje w <span class="k">config/</span>.
+        </footer>
+      </main>
+    </div>
+  </div>
+</body>
+</html>
