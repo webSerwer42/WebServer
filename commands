@@ -2,3 +2,7 @@ python3 -m http.server 8899
 http://localhost:8899/mapa.html
 
 git push -u origin  debug-gbu
+
+
+
+asdasqwe
