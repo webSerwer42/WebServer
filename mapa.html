@@ -112,44 +112,7 @@ make
           </div>
         </section>
 
-        <section id="tree">
-          <h2>Mapa plików</h2>
-          <details open>
-            <summary>Struktura repo (najważniejsze katalogi) <span class="hint">co jest gdzie i po co</span></summary>
-            <pre><code>.
-├── Makefile
-├── README.md
-├── EVALUATION_GUIDE.md
-├── webserv                     # binarka (po build)
-├── ubuntu_tester               # tester
-├── config/
-│   ├── default.conf
-│   ├── multi_server.conf
-│   ├── redirect_test.conf
-│   ├── test.conf
-│   └── ubuntu_tester.conf
-├── include/
-│   ├── webserv.hpp             # stałe, include systemowe, LocationConfig
-│   ├── Server.hpp              # event loop, routing, CGI, upload
-│   ├── Config.hpp              # parser/config model
-│   ├── Client.hpp              # stan połączenia, buffering, body streaming
-│   ├── HttpRequest.hpp         # parser request (headers + body file)
-│   ├── HttpResponse.hpp        # budowa odpowiedzi
-│   ├── CGI.hpp                 # env CGI, interpreter/script
-│   └── Utils.hpp               # log, pliki, string utils
-├── src/
-│   ├── main.cpp
-│   ├── Server.cpp
-│   ├── Config.cpp
-│   ├── Client.cpp
-│   ├── HttpRequest.cpp
-│   ├── HttpResponse.cpp
-│   ├── CGI.cpp
-│   └── Utils.cpp
-├── www-main/ www-api/ www-files/ www-dev/  # przykładowe docrooty
-└── YoupiBanane/                 # struktura wymagana przez ubuntu_tester</code></pre>
-          </details>
-        </section>
+
 
         <section id="components">
           <h2>Komponenty (klasy) i odpowiedzialności</h2>
@@ -439,9 +402,7 @@ curl -X POST -F "file=@README.md" http://localhost:8080/upload/</code></pre>
           </details>
         </section>
 
-        <footer>
-          Źródła mapy: struktura repo + README/EVALUATION_GUIDE + konfiguracje w <span class="k">config/</span>.
-        </footer>
+
       </main>
     </div>
   </div>
